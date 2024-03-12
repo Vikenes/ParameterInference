@@ -5,13 +5,39 @@ import os
 import emcee 
 import time 
 
-###
-# FROM ABACUS
-###
+
+# params = np.array([
+#     [13.1, 12.5, 13.8, 0.03],  # M_cut
+#     [14.5, 13.5, 15.5, 0.3] ,  # M1
+#     [0.8 , 0.1 , 1.5 , 0.3] ,  # sigma
+#     [1.0 , 0.7 , 1.5 , 0.2] ,  # alpha
+#     [0.5 , 0.0 , 1.0 , 0.25]])
+# nwalkers = 10
+# nparams = 5 
+# p_initial = params[:, 0] + np.random.normal(size=(nwalkers, nparams)) #* params[:, 3][None, :]
 
 
-def lnprob(p, ):
-    pass 
+# exit()
+def inrange(p, params):
+    return np.all((p<=params[:, 2]) & (p>=params[:, 1]))
+
+def lnprob(p, params, param_mapping, param_tracer, Data, Ball):
+    if inrange(p, params):
+        # read the parameters
+        for key in param_mapping.keys():
+            mapping_idx = param_mapping[key]
+            tracer_type = param_tracer[key]
+            #tracer_type = param_tracer[params[mapping_idx, -1]]
+            Ball.tracers[tracer_type][key] = p[mapping_idx]
+            print(key, Ball.tracers[tracer_type][key])
+
+        # pass them to the mock dictionary
+        mock_dict = Ball.run_hod(Ball.tracers, Ball.want_rsd, Nthread = 64)
+        clustering = Ball.compute_xirppi(mock_dict, Ball.rpbins, Ball.pimax, Ball.pi_bin_size, Nthread = 16)
+        lnP = Data.compute_likelihood(clustering)
+    else:
+        lnP = -np.inf
+    return lnP
 
 def main(path2config, time_likelihood):
 
@@ -63,6 +89,7 @@ def main(path2config, time_likelihood):
     [0.8 , 0.1 , 1.5 , 0.3]   # sigma
     [1.0 , 0.7 , 1.5 , 0.2]   # alpha
     [0.5 , 0.0 , 1.0 , 0.25]])  # kappa 
+    init , min ,  max , sacling of rand-norm init param values 
     """
 
     # emcee parameters
