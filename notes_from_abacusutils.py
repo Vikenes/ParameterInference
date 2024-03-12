@@ -22,6 +22,7 @@ def inrange(p, params):
     return np.all((p<=params[:, 2]) & (p>=params[:, 1]))
 
 def lnprob(p, params, param_mapping, param_tracer, Data, Ball):
+    # Check if p is within the flat prior range
     if inrange(p, params):
         # read the parameters
         for key in param_mapping.keys():
