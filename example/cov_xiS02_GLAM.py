@@ -21,9 +21,10 @@ _lst0 = []
 _lst2 = []
 t0 = time.time()
 for jj in range(Nr):
-    box_id = int(jj + 1)
-    xi0[:, jj] = file_xiS_sim['xi_vg_S'][f'box{box_id}']['xi_vg_S0'][...]
-    xi2[:, jj] = file_xiS_sim['xi_vg_S'][f'box{box_id}']['xi_vg_S2'][...]
+    # for c000_ph000-ph024
+    box_id = int(jj + 1) 
+    xi0[:, jj] = file_xiS_sim['xi_vg_S'][f'box{box_id}']['xi_vg_S0'][...] # wp from s_z
+    # xi2[:, jj] = file_xiS_sim['xi_vg_S'][f'box{box_id}']['xi_vg_S2'][...] #  
 
 
 
