@@ -3,6 +3,24 @@ import h5py
 import yaml 
 import os 
 
+LRG_params = {
+    "Mcut": 13.1,
+    "M1": 14.5
+    }
+
+HOD_params = {
+    "LRG_params": LRG_params,
+}
+
+tracer_flags = {"LRG": True, "KUK": False}
+
+tracers = {}
+for key in tracer_flags.keys():
+    if tracer_flags[key]:
+        tracers[key] = HOD_params[key+"_params"]
+
+print(tracers)
+
 
 def compute_likelihood(
         data:       dict,

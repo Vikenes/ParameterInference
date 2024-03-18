@@ -26,14 +26,27 @@ def lnprob(p, params, param_mapping, param_tracer, Data, Ball):
     if inrange(p, params):
         # read the parameters
         for key in param_mapping.keys():
+            # logMcut, logM1, sigma, alpha, kappa
             mapping_idx = param_mapping[key]
-            tracer_type = param_tracer[key]
-            #tracer_type = param_tracer[params[mapping_idx, -1]]
-            Ball.tracers[tracer_type][key] = p[mapping_idx]
+            tracer_type = param_tracer[key] # = LRG
+            Ball.tracers[tracer_type][key] = p[mapping_idx] # Ball.tracers[LRG][logMcut] = p[0}
+            """
+            tracers = {
+                LRG: 
+                {
+                LRG_params:
+                    logM_cut: 13.3
+                    logM1: 14.4
+                    sigma: 0.8
+                    ...
+                } 
+            }
+            
+            """
             print(key, Ball.tracers[tracer_type][key])
 
         # pass them to the mock dictionary
-        mock_dict = Ball.run_hod(Ball.tracers, Ball.want_rsd, Nthread = 64)
+        mock_dict  = Ball.run_hod(Ball.tracers, Ball.want_rsd, Nthread = 64)
         clustering = Ball.compute_xirppi(mock_dict, Ball.rpbins, Ball.pimax, Ball.pi_bin_size, Nthread = 16)
         lnP = Data.compute_likelihood(clustering)
     else:
@@ -90,7 +103,7 @@ def main(path2config, time_likelihood):
     [0.8 , 0.1 , 1.5 , 0.3]   # sigma
     [1.0 , 0.7 , 1.5 , 0.2]   # alpha
     [0.5 , 0.0 , 1.0 , 0.25]])  # kappa 
-    init , min ,  max , sacling of rand-norm init param values 
+    init , min ,  max , scaling of rand-norm init param values 
     """
 
     # emcee parameters
