@@ -5,12 +5,8 @@
 		}
 	],
 	"settings": {
-		"python.defaultInterpreterPath": "/mn/stornext/d5/data/vetleav/envs/halomodel/bin/python",
-		// "terminal.integrated.cwd": "/uio/hume/student-u74/vetleav/Documents/thesis/HOD/HaloModel/HOD_and_cosmo_emulation",
+		"python.defaultInterpreterPath": "/mn/stornext/d5/data/vetleav/envs/python311/bin/python",
+		"terminal.integrated.cwd": ".",
 		"python.terminal.activateEnvironment": true,
-		// "python.analysis.extraPaths": [
-			// "./HaloModel/HOD_emulation_LCDM", 
-			// "./HaloModel/HOD_and_cosmo_emulation"
-		// ]
 	},
 }
