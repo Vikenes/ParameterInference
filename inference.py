@@ -3,24 +3,9 @@ import h5py
 import yaml 
 import os 
 
-LRG_params = {
-    "Mcut": 13.1,
-    "M1": 14.5
-    }
-
-HOD_params = {
-    "LRG_params": LRG_params,
-}
-
-tracer_flags = {"LRG": True, "KUK": False}
-
-tracers = {}
-for key in tracer_flags.keys():
-    if tracer_flags[key]:
-        tracers[key] = HOD_params[key+"_params"]
-
-print(tracers)
-
+covpath = "/mn/stornext/d5/data/vetleav/HOD_AbacusData/covariance_data_fiducial/cov_wp_fiducial.npy"
+cov     = np.load(covpath)
+icov    = np.linalg.inv(cov)
 
 def compute_likelihood(
         data:       dict,
@@ -29,12 +14,9 @@ def compute_likelihood(
 ):
     lnprob = 0. 
 
-    for key in data.keys():
-        delta = (data[key] - theory[key]).flatten()
-        # lnprob += np.dot(delta, np.dot(cov_inv, delta))
-        lnprob += np.einsum('i,ij,j', delta, cov_inv, delta)
-    lnprob *= -0.5
-
+    # delta  = (data - theory).flatten()
+    delta  = data - theory
+    lnprob = -0.5 * np.einsum('i,ij,j', delta, cov_inv, delta) 
     return lnprob 
 
 
