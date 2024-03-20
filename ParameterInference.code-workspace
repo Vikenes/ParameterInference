@@ -8,5 +8,8 @@
 		"python.defaultInterpreterPath": "/mn/stornext/d5/data/vetleav/envs/python311/bin/python",
 		"terminal.integrated.cwd": ".",
 		"python.terminal.activateEnvironment": true,
+		"python.analysis.extraPaths": [
+			"/uio/hume/student-u74/vetleav/Documents/thesis/emulation/emul_utils"
+		]
 	},
 }
