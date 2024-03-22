@@ -6,6 +6,7 @@ from scipy.interpolate import InterpolatedUnivariateSpline as IUS
 from scipy.integrate import simps
 import pandas as pd 
 import yaml 
+import emcee 
 
 import sys 
 sys.path.append("/uio/hume/student-u74/vetleav/Documents/thesis/emulation/emul_utils")
@@ -39,23 +40,27 @@ class xi_emulator_class:
 class Likelihood:
     def __init__(
         self,
-        data_path = "/mn/stornext/d5/data/vetleav/HOD_AbacusData/covariance_data_fiducial",
-        emulator_path = "emulator_data/vary_r/emulators/compare_scaling",
-        emulator_version = 6
+        data_path           = "/mn/stornext/d5/data/vetleav/HOD_AbacusData/covariance_data_fiducial",
+        emulator_path       = "emulator_data/vary_r/emulators/compare_scaling",
+        emulator_version    = 6,
+        walkers_per_param   = 4,
     ):
         self.data_path = Path(data_path)
-        self.load_wp_data()
-        self.load_fiducial_xi()
-        
-        self.load_covariance_data()
+        self.r_perp, self.w_p_data = self.load_wp_data()
 
-        self.emulator = xi_emulator_class(emulator_path, emulator_version)
+        self.cov_matrix_inv = self.load_covariance_data()
 
-        self.r_para = np.linspace(0, 100, int(1000))
-        self.r_from_rp_rpi   = np.sqrt(self.r_perp.reshape(-1,1)**2 + self.r_para.reshape(1,-1)**2)
+        self.emulator       = xi_emulator_class(emulator_path, emulator_version)
 
-        emulator_config = self.emulator.config
-        self.emulator_param_names = emulator_config["data"]["feature_columns"][:-1]
+        self.r              = self.get_r_from_fiducial_xi()
+        self.r_emul_input   = self.r.reshape(-1,1)
+        self.r_para         = np.linspace(0, int(np.max(self.r)), int(1000))
+        self.r_from_rp_rpi  = np.sqrt(self.r_perp.reshape(-1,1)**2 + self.r_para.reshape(1,-1)**2)
+
+        self.emulator_param_names   = self.emulator.config["data"]["feature_columns"][:-1]
+        self.nparams               = len(self.emulator_param_names)
+        self.nwalkers               = self.nparams * walkers_per_param
+        self.param_priors           = self.get_parameter_priors()
 
 
     def load_covariance_data(self):
@@ -63,8 +68,9 @@ class Likelihood:
         Load covariance matrix and its inverse
         Computed from the wp data loaded in "load_wp_data()"
         """
-        self.cov_matrix        = np.load(self.data_path / "cov_wp_fiducial.npy")
-        self.cov_matrix_inv    = np.linalg.inv(self.cov_matrix)
+        cov_matrix             = np.load(self.data_path / "cov_wp_fiducial.npy")
+        cov_matrix_inv    = np.linalg.inv(cov_matrix)
+        return cov_matrix_inv
         
     def load_wp_data(self):
         """
@@ -72,64 +78,57 @@ class Likelihood:
         computed from fiducial AbacusSummit simulation: c000_ph000-c000_ph024
         """
         WP = h5py.File(self.data_path / "wp_from_sz_fiducial_ng_fixed.hdf5", "r")
-        self.r_perp = WP["rp_mean"][:]
-        self.w_p_data = WP["wp_mean"][:]
+        r_perp = WP["rp_mean"][:]
+        w_p_data = WP["wp_mean"][:]
         WP.close()
+        return r_perp, w_p_data
 
 
-    def load_fiducial_xi(self):
+    def get_r_from_fiducial_xi(self):
         """
         Load fiducial xi data
         computed from fiducial AbacusSummit simulation: c000_ph000-c000_ph024
         """
         XI = h5py.File(self.data_path / "tpcf_r_fiducial_ng_fixed.hdf5", "r")
-        r_lst = []
-        xi_lst = []
-        for ph in range(25):
-            XI_sim = XI[f"AbacusSummit_base_c000_ph{str(ph).zfill(3)}"]
-            r_lst.append(XI_sim["r"][:])
-            xi_lst.append(XI_sim["xi"][:])
-
+        r = XI["r_mean"][:]
         XI.close()
-
-        self.r_data     = np.array(r_lst)
-        self.xi_data    = np.array(xi_lst)
+        return r 
 
     def get_parameter_priors(self):
 
-        config = yaml.safe_load(open(f"{self.data_path}/priors_config.yaml"))
-        N_params = len(config) 
-        self.param_priors = np.zeros((N_params, 2))
+        config          = yaml.safe_load(open(f"{self.data_path}/priors_config.yaml"))
+        param_priors    = np.zeros((self.nparams, 2))
 
         for i, param_name in enumerate(self.emulator_param_names):
-            self.param_priors[i] = config[param_name]
+            param_priors[i] = config[param_name]
 
-        mean_param_values = np.mean(self.param_priors, axis=1)
-        ff = np.ones_like(mean_param_values) * 0.3
-        nwalkers = N_params * 4
-        self.initial_guess = mean_param_values + np.random.normal(0, 1, size=(nwalkers, N_params)) * ff[None, :]
-        print(f"{self.initial_guess.shape=}")
+        return param_priors
 
 
-
-    def __call__(
-        self,
-        params,
-    ):
-        r = self.r_data[0]
-        Nr = len(r)
-        emul_input = np.column_stack((
-            np.vstack(
-                [params] * Nr
-                )
-            ,r
-            ))
+    def inrange(self, params):
+        """
+        Check if the parameters are within the prior range
+        """
+        return np.all((params >= self.param_priors[:,0]) & (params <= self.param_priors[:,1]))
+    
+    def log_likelihood(self, params):
         
-        xi = self.emulator(emul_input)
-        xiR_func = IUS(
-            r, xi
-        )
+        wp_theory   = self.get_wp_theory(params)
+        delta       = self.w_p_data - wp_theory
+        lnprob      = -0.5 * np.einsum('i,ij,j', delta, self.cov_matrix_inv, delta) 
+        return lnprob
+    
+    def get_wp_theory(self, params):
 
+        emul_input = np.hstack((
+            params * np.ones_like(self.r_emul_input), 
+            self.r_emul_input
+        ))
+        xi_theory = self.emulator(emul_input)
+
+        xiR_func = IUS(
+            self.r, xi_theory
+        )
 
         w_p_theory = 2.0 * simps(
             xiR_func(
@@ -137,36 +136,72 @@ class Likelihood:
             ),
             self.r_para,
             axis=-1
-        )        
+        )
+        return w_p_theory
+    
 
-        delta = self.w_p_data - w_p_theory
-        # lnprob = -0.5 * delta.T @ self.cov_matrix_inv @ delta
-        lnprob = -0.5 * np.einsum('i,ij,j', delta, self.cov_matrix_inv, delta) 
+    def log_prob(self, params):
+        if self.inrange(params):
+            lnprob = self.log_likelihood(params)
+        else:
+            lnprob = -np.inf
         return lnprob
 
 
-L = Likelihood()
-# L.load_fiducial_xi()
-L.get_parameter_priors()
+    def test_log_prob(self):
+        FIDUCIAL_HOD_params     = pd.read_csv(f"{D13_PATH}/fiducial_data/HOD_parameters_fiducial_ng_fixed.csv")
+        FIDUCIAL_cosmo_params   = pd.read_csv(f"{D13_PATH}/fiducial_data/cosmological_parameters.dat", sep=" ")
+        FIDUCIAL_params         = pd.concat([FIDUCIAL_HOD_params, FIDUCIAL_cosmo_params], axis=1)
+        FIDUCIAL_params         = FIDUCIAL_params.iloc[0].to_dict()
 
-exit()
-HOD_param_names = ['sigma_logM', 'alpha', 'kappa', 'log10M1', 'log10Mmin']
-TPCF_data = h5py.File(D5_PATH+"TPCF_test_ng_fixed.hdf5", "r")
-c0 = TPCF_data["AbacusSummit_base_c000_ph000"]["node0"]
-HOD_params = pd.read_csv(f"{D13_PATH}/AbacusSummit_base_c000_ph000/HOD_parameters/HOD_parameters_fiducial_ng_fixed.csv")
-# print(HOD_params)
-# print(c0.attrs.keys())
-np.random.seed(123)
-params = []
-for param in L.emulator_param_names:
-    if param in HOD_param_names:
-        pval = HOD_params[param].values[0]
-    else:
-        pval = c0.attrs[param]
-    params.append(pval + np.random.normal(0, 1) * 1e-4)
+        test_params = [FIDUCIAL_params[param] for param in self.emulator_param_names]
+        test_params += np.random.normal(0, 1e-3, size=len(test_params))
+
+        lnprob = self.log_prob(test_params)
+        print(lnprob)
+            
+    def run_emcee(self, nsteps=200):
+        nwalkers = self.nwalkers
+        nparams = self.nparams
+        mean_param_values = np.mean(self.param_priors, axis=1)
+        self.initial_guess = mean_param_values + np.random.normal(0, 1e-3, size=(self.nwalkers, self.nparams))
+
+        sampler = emcee.EnsembleSampler(
+            nwalkers, 
+            nparams, 
+            self.log_prob,
+        )
+        sampler.run_mcmc(
+            self.initial_guess, 
+            nsteps, 
+            progress=True)
+
+        return sampler
+
+
+
+L = Likelihood()
+# L.test_log_prob()
+L.run_emcee()
+# L.load_fiducial_xi()
+# L.get_parameter_priors()
+
+# exit()
+
+
+# Combine the fiducial HOD and cosmological parameters
+# print(FIDUCIAL_params)
+# exit()
+
+# for key, val in FIDUCIAL_cosmo_params.items():
+# for key, val in FIDUCIAL_HOD_params.items():
 
 
 # lnprob = L(params)
 
 # print(lnprob)
+    
+
+
+
     
