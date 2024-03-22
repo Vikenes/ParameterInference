@@ -95,6 +95,9 @@ import emcee
 
 pos = soln.x + 1e-4 * np.random.randn(32, 3)
 nwalkers, ndim = pos.shape
+print(f"{y.shape=}")
+print(pos.shape)
+exit()
 
 sampler = emcee.EnsembleSampler(
     nwalkers, ndim, log_probability, args=(x, y, yerr)
