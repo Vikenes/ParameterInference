@@ -5,10 +5,13 @@ import matplotlib.pyplot as plt
 from scipy.interpolate import InterpolatedUnivariateSpline as IUS
 from scipy.integrate import simps
 import pandas as pd 
+import yaml 
 
 import sys 
 sys.path.append("/uio/hume/student-u74/vetleav/Documents/thesis/emulation/emul_utils")
 from _predict import Predictor 
+
+sys.path.append("/uio/hume/student-u74/vetleav/Documents/thesis/HOD/HaloModel/HOD_and_cosmo_emulation/parameter_samples_plot")
 
 D13_PATH = "/mn/stornext/d13/euclid_nobackup/halo/AbacusSummit/emulation_files/"
 D5_PATH = "emulator_data/vary_r/"
@@ -19,7 +22,10 @@ class xi_emulator_class:
             LIGHTING_LOGS_PATH  = "emulator_data/vary_r/emulators/compare_scaling",
             version             =   6,
             ):
-        self.predictor = Predictor.from_path(f"{LIGHTING_LOGS_PATH}/version_{version}")
+        path            = Path(f"{LIGHTING_LOGS_PATH}/version_{version}")
+        self.predictor  = Predictor.from_path(path)
+        self.config     = self.predictor.load_config(path)
+
 
     def __call__(
         self,
@@ -45,6 +51,12 @@ class Likelihood:
 
         self.emulator = xi_emulator_class(emulator_path, emulator_version)
 
+        self.r_para = np.linspace(0, 100, int(1000))
+        self.r_from_rp_rpi   = np.sqrt(self.r_perp.reshape(-1,1)**2 + self.r_para.reshape(1,-1)**2)
+
+        emulator_config = self.emulator.config
+        self.emulator_param_names = emulator_config["data"]["feature_columns"][:-1]
+
 
     def load_covariance_data(self):
         """
@@ -60,17 +72,10 @@ class Likelihood:
         computed from fiducial AbacusSummit simulation: c000_ph000-c000_ph024
         """
         WP = h5py.File(self.data_path / "wp_from_sz_fiducial_ng_fixed.hdf5", "r")
-        r_perp_lst = []
-        w_p_lst = []
-        for ph in range(25):
-            WP_sim = WP[f"AbacusSummit_base_c000_ph{str(ph).zfill(3)}"]
-            r_perp_lst.append(WP_sim["r_perp"][:])
-            w_p_lst.append(WP_sim["w_p"][:])
-
+        self.r_perp = WP["rp_mean"][:]
+        self.w_p_data = WP["wp_mean"][:]
         WP.close()
 
-        self.r_perp   = np.array(r_perp_lst)
-        self.w_p_data = np.array(w_p_lst)
 
     def load_fiducial_xi(self):
         """
@@ -90,16 +95,20 @@ class Likelihood:
         self.r_data     = np.array(r_lst)
         self.xi_data    = np.array(xi_lst)
 
-        # plt.plot(self.r[0], self.xi_data[0])
-        # plt.xscale("log")
-        # plt.yscale("log")
-        # plt.show()
+    def get_parameter_priors(self):
 
-    def xi_to_wp(self, r, xi):
-        """
-        Convert xi to wp
-        """
-        
+        config = yaml.safe_load(open(f"{self.data_path}/priors_config.yaml"))
+        N_params = len(config) 
+        self.param_priors = np.zeros((N_params, 2))
+
+        for i, param_name in enumerate(self.emulator_param_names):
+            self.param_priors[i] = config[param_name]
+
+        mean_param_values = np.mean(self.param_priors, axis=1)
+        ff = np.ones_like(mean_param_values) * 0.3
+        nwalkers = N_params * 4
+        self.initial_guess = mean_param_values + np.random.normal(0, 1, size=(nwalkers, N_params)) * ff[None, :]
+        print(f"{self.initial_guess.shape=}")
 
 
 
@@ -121,45 +130,26 @@ class Likelihood:
             r, xi
         )
 
-        r_perp = self.r_perp[0].reshape(-1,1)
-        r_para = np.linspace(0, 100, int(1000)).reshape(1,-1)
 
         w_p_theory = 2.0 * simps(
             xiR_func(
-                np.sqrt(r_perp**2 + r_para**2)
+                self.r_from_rp_rpi
             ),
-            r_para,
+            self.r_para,
             axis=-1
-        )
+        )        
 
-        # plt.plot(self.r_perp[0], self.r_perp[0] * w_p_theory, label="theory")
-        # plt.plot(self.r_perp[0], self.r_perp[0] * self.w_p_data[0], label="data")
-        # plt.xscale("log")
-        # plt.yscale("log")
-        # plt.legend()
-        # plt.show()
-
-        
-
-        # w_p_theory = self.xi_to_wp(xi)
-        delta = self.w_p_data[0] - w_p_theory# ).flatten()
-        # print(f"{w_p_theory.shape=}")
-        # print(f"{self.w_p_data.shape=}")    
-        # exit()
-
-        # print(f"{delta.shape=}")
-        # print(f"{self.cov_matrix_inv.shape=}")
-        mp = delta.T @ self.cov_matrix_inv @ delta
-        print(mp)
-
-        exit()
+        delta = self.w_p_data - w_p_theory
+        # lnprob = -0.5 * delta.T @ self.cov_matrix_inv @ delta
         lnprob = -0.5 * np.einsum('i,ij,j', delta, self.cov_matrix_inv, delta) 
         return lnprob
 
 
 L = Likelihood()
 # L.load_fiducial_xi()
-param_names = ['wb', 'wc', 'sigma8', 'ns', 'alpha_s', 'N_eff', 'w0', 'wa', 'sigma_logM', 'alpha', 'kappa', 'log10M1', 'log10Mmin']
+L.get_parameter_priors()
+
+exit()
 HOD_param_names = ['sigma_logM', 'alpha', 'kappa', 'log10M1', 'log10Mmin']
 TPCF_data = h5py.File(D5_PATH+"TPCF_test_ng_fixed.hdf5", "r")
 c0 = TPCF_data["AbacusSummit_base_c000_ph000"]["node0"]
@@ -168,15 +158,15 @@ HOD_params = pd.read_csv(f"{D13_PATH}/AbacusSummit_base_c000_ph000/HOD_parameter
 # print(c0.attrs.keys())
 np.random.seed(123)
 params = []
-for param in param_names:
+for param in L.emulator_param_names:
     if param in HOD_param_names:
         pval = HOD_params[param].values[0]
     else:
         pval = c0.attrs[param]
     params.append(pval + np.random.normal(0, 1) * 1e-4)
 
-# params = [0.02282, 0.12, 0.808181, 0.9649, 0.0, 3.0328, -1.0, 0.0, 0.7184170121274857, 0.9941066904333122, 0.538306161066293, 13.87001633956449, 13.604313483674156]
 
-lnprob = L(params)
+# lnprob = L(params)
 
-print(lnprob)
+# print(lnprob)
+    
