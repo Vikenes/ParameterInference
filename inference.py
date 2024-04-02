@@ -308,29 +308,50 @@ class Likelihood:
         cosmo_samples = samples[:, cosmo_indices]
         cosmo_labels = [self.get_param_names_latex()[param] for param in self.cosmo_param_names]
         fiducial_params = self.get_fiducial_params()
-        # print(fiducial_params[cosmo_indices])
         cosmo_fiducial_params = [fiducial_params[i] for i in cosmo_indices]
-        corner.corner(
+        fig = corner.corner(
             cosmo_samples, 
             labels=cosmo_labels,
             truths=cosmo_fiducial_params,
             )
-        plt.show()
+        fig.savefig("figures/cosmo_corner.png", dpi=200)
+        fig.clf()
 
 
-    def plot_chain_old(self, filename = "test1.npy"):
+    def plot_HOD(
+            self,
+            filename="test.h5",
+        ):
 
-        chain = np.load(self.outpath / filename, allow_pickle=True).item()
-        param = "wb"
-        plt.hist(chain[param], bins=100, histtype="step")
-        plt.show()
-        # print(chain[param])
+        outfile     = Path(self.outpath / filename)
+        if not outfile.exists():
+            raise FileNotFoundError(f"File {outfile} not found. Run chain first.")
+        reader      = emcee.backends.HDFBackend(outfile)
+        sampler     = self.load_sampler(backend=reader)
+
+        samples     = reader.get_chain(discard=0, flat=True)
+
+        # Get indices where self.HOD_param_names are found in self.emulator_param_names
+        HOD_indices = [self.emulator_param_names.index(param) for param in self.HOD_param_names]
+        HOD_samples = samples[:, HOD_indices]
+        HOD_labels = [self.get_param_names_latex()[param] for param in self.HOD_param_names]
+        fiducial_params = self.get_fiducial_params()
+        HOD_fiducial_params = [fiducial_params[i] for i in HOD_indices]
+        fig = corner.corner(
+            HOD_samples, 
+            labels=HOD_labels,
+            truths=HOD_fiducial_params,
+            )
+        fig.savefig("figures/HOD_corner.png", dpi=200)
+        fig.clf()
+        
 
         
 
 L = Likelihood()
 # L.run_chain()
 L.plot_cosmo()
+L.plot_HOD()
 # L.test_log_prob()
 # L.store_chain()
 # L.plot_chain()
