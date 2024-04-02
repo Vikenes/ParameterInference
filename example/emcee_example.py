@@ -95,13 +95,73 @@ import emcee
 
 pos = soln.x + 1e-4 * np.random.randn(32, 3)
 nwalkers, ndim = pos.shape
-print(f"{y.shape=}")
-print(pos.shape)
-exit()
 
 sampler = emcee.EnsembleSampler(
-    nwalkers, ndim, log_probability, args=(x, y, yerr)
+    nwalkers, ndim, log_probability, args=(x, y, yerr),
+    backend = emcee.backends.HDFBackend("test2.h5")
 )
+backend=emcee.backends.HDFBackend("test.h5")
+sampler2 = emcee.EnsembleSampler(
+    nwalkers, ndim, log_probability, args=(x, y, yerr),
+    backend = backend
+)
+
+def test_convergence():
+    max_n = 10000
+    index = 0
+    autocorr = np.empty(max_n)
+    # backend = emcee.backends.HDFBackend("test.h5")
+    # backend.reset(nwalkers, ndim)
+
+
+
+    old_tau = np.inf
+
+    for sample in sampler2.sample(pos, iterations=max_n, progress=True):
+        if sampler2.iteration % 100:
+            continue
+
+        tau = sampler2.get_autocorr_time(tol=0)
+        autocorr[index] = np.mean(tau)
+        index += 1
+
+        converged = np.all(tau * 100 < sampler2.iteration)
+        converged &= np.all(np.abs(old_tau - tau) / tau < 0.11)
+
+        if converged:
+            break
+
+        old_tau = tau
+
+
+
+# test_convergence()
+
+def load_convergence():
+    reader = emcee.backends.HDFBackend("test.h5")
+    tau = reader.get_autocorr_time()
+    burnin = int(2 * np.max(tau))
+    thin = int(0.5 * np.min(tau))
+    samples = reader.get_chain(discard=burnin, thin=thin, flat=True)
+
+    import corner 
+    log_prob_samples = sampler2.get_log_prob(discard=burnin, flat=True, thin=thin)
+    log_prior_samples = sampler2.get_blobs(discard=burnin, flat=True, thin=thin)
+    # all_samples = np.concatenate(
+        # (samples, log_prob_samples[:, None]), axis=1
+    # )
+
+    # labels = list(map(r"$\theta_{{{0}}}$".format, range(1, ndim + 1)))
+    labels = ["m", "b", "log(f)", "logprob"]
+
+
+    corner.corner(samples, labels=labels)
+    plt.show()
+
+# load_convergence()
+# exit()
+
+
 print("Running MCMC...") # SELF 
 sampler.run_mcmc(pos, 2000, progress=True)
 
@@ -122,15 +182,31 @@ def plot_chain():
 tau = sampler.get_autocorr_time()
 print(f"{tau=}")
 
+"""
+sampler.get_chain() returns a 3D array with 
+    shape (nsteps, nwalkers, ndim) 
+giving the parameter values for each walker at each step in the chain.
+
+flat=True argument to sampler.get_chain() gives 2D array with
+    shape (nsteps * nwalkers, ndim)
+
+with discard and thin, the shape of the array can be changed to
+    shape ((nsteps - discard)[::thin] * nwalkers, ndim) 
+
+"""
+
 flat_samples = sampler.get_chain(discard=100, thin=15, flat=True)
-
-
-mmm = flat_samples[..., 0]
-plt.hist(mmm, bins=100, histtype="step")
-plt.show()
-print(mmm)
-print(mmm.shape)
+names = ["m", "b", "f"]
+outdict = {}
+for i in range(ndim):
+    outdict[names[i]] = flat_samples[:, i]
+# np.save("emcee_chain.npy", outdict)
 exit()
+mmm = flat_samples[..., 0]
+
+plt.hist(mmm, bins=100, histtype="step")
+exit()
+plt.show()
 
 import corner
 
