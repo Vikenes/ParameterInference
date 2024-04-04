@@ -198,9 +198,6 @@ class Likelihood:
             lnprob = -np.inf
         return lnprob
 
-
-
-
     def run_chain(
             self,
             filename: str,
@@ -218,7 +215,6 @@ class Likelihood:
             initial_step   = init_param_values + np.random.normal(0, 1e-3, size=(self.nwalkers, self.nparams))
         else:
             raise ValueError("Invalid filename. Choose one of the predefined filenames.")
-
 
         outfile = Path(self.outpath / filename)
         if outfile.exists():
@@ -244,7 +240,6 @@ class Likelihood:
                 dset_pos[ii] = pos
                 dset_prob[ii] = prob
 
-
                 if sampler.iteration % 100:
                     continue
 
@@ -257,12 +252,152 @@ class Likelihood:
 
                 old_tau = tau
 
+            tau = emcee.autocorr.integrated_time(dset_pos, c=1, tol=0, quiet=True)
+            f.create_dataset("tau", data=tau)
+
+        return None 
+
+
+    def run_chain_test(
+            self,
+            filename: str,
+            max_n:    int = 10,
+            ):
+        
+        # self.nwalkers = 2
+        
+        mean_param_values   = np.mean(self.param_priors, axis=1)
+        init_param_values = self.get_fiducial_params()
+        np.random.seed(421)
+        initial_step   = mean_param_values + 1e-3 * np.random.normal(0, 1, size=(self.nwalkers, self.nparams))
+
+
+
+        outfile = Path(self.outpath / filename)
+
+        sampler = emcee.EnsembleSampler(
+            self.nwalkers, 
+            self.nparams, 
+            self.log_prob,
+            moves=emcee.moves.StretchMove(live_dangerously=True)
+        )
+        old_tau = np.inf
+
+        with h5py.File(outfile, "w") as f:
+            # Create resizable datasets to store the chain
+            dset_pos  = f.create_dataset("chain", (max_n, self.nwalkers, self.nparams), maxshape=(None, self.nwalkers, self.nparams))
+            dset_prob = f.create_dataset("lnprob", (max_n, self.nwalkers), maxshape=(None, self.nwalkers))
+            tau = 1
+
+            for ii, (pos, prob, state) in enumerate(sampler.sample(initial_step, iterations=max_n, progress=False, skip_initial_state_check=True)):
+            # for pos, prob, state in sampler.sample(initial_step, iterations=max_n, progress=False, skip_initial_state_check=True):
+
+                # print(f"{ii=} | {sampler.iteration=}")
+                dset_pos[ii] = pos
+                dset_prob[ii] = prob
+
+                tau = sampler.get_autocorr_time(c=1, tol=0)
+
+                if ii > 2 and np.all(np.isfinite(tau)):
+                    print(ii)
+                    break
+
+
+            dset_pos.resize(sampler.iteration, axis=0)
+            dset_prob.resize(sampler.iteration, axis=0)
+
+            # Store the autocorrelation time
+            tau = emcee.autocorr.integrated_time(dset_pos, c=1, tol=0, quiet=True)
+            f.create_dataset("tau", data=tau)
+
+        return None 
+
+
+    def continue_chain_test(
+            self,
+            filename:   str,
+            max_new_iterations:      int = 5,
+            ):
+        """
+        Continue chain from last iteration in file
+
+        Need to pass an argument to sampler to not check for independent walkers
+        """
+        self.run_chain_test(filename, max_n=10)
+
+        outfile = Path(self.outpath / filename)
+        if not outfile.exists():
+            raise FileNotFoundError(f"File {outfile} not found. Run chain first.")
+        
+        sampler = emcee.EnsembleSampler(
+            self.nwalkers, 
+            self.nparams, 
+            self.log_prob,
+            moves=emcee.moves.StretchMove(live_dangerously=True)
+        )
+
+        with h5py.File(outfile, "r+") as restart_file:
+            dset_pos = restart_file["chain"]
+            dset_prob = restart_file["lnprob"]
+            # Load tau from file if already computed, otherwise compute it
+            if "tau" in restart_file.keys():
+                old_tau = restart_file["tau"][:]
+            else:
+                old_tau = emcee.autocorr.integrated_time(dset_pos, c=1, tol=0, quiet=True)
+
+
+            # Save old tau in a new dataset
+            tau_index = 0
+            while f"tau_{tau_index}" in restart_file.keys():
+                tau_index += 1
+            restart_file.create_dataset(f"tau_{tau_index}", data=old_tau)
             
+            # Use last position of chain as new initial step
+            initial_step = dset_pos[-1] #+ 1e-4
+            old_max_n = dset_pos.shape[0]
+
+            # Expand data sets to store new data
+            dset_pos.resize(old_max_n + max_new_iterations, axis=0)
+            dset_prob.resize(old_max_n + max_new_iterations, axis=0)
+
+
+            for ii, (pos, prob, state) in enumerate(sampler.sample(initial_step, iterations=max_new_iterations, progress=False, skip_initial_state_check=True)):
+                # Store new data 
+                dset_pos[old_max_n + ii] = pos
+                dset_prob[old_max_n + ii] = prob
+
+                tau = emcee.autocorr.integrated_time(dset_pos[:old_max_n+ii+1], c=1, tol=0, quiet=True)
+
+                # converged = np.all(tau * 100 < sampler.iteration)
+                # converged &= np.all(np.abs(old_tau - tau) / tau < 0.11)
+                converged = ii == 3
+
+                if converged:
+                    break
+
+                old_tau = tau
+
+            # Resize datasets to remove potentially unused space
+            """
+            CHECK WHICH IS CORRECT. ii or sampler.iteration
+            """
+
+
+
+            dset_pos.resize(old_max_n + sampler.iteration, axis=0)
+            dset_prob.resize(old_max_n + sampler.iteration, axis=0)
+
+            # Store the autocorrelation time
+            tau = emcee.autocorr.integrated_time(dset_pos, c=1, tol=0, quiet=True)
+            restart_file["tau"][:]=tau
+
+        
+        return None             
 
     def continue_chain(
             self,
             filename:   str,
-            max_n:      int = int(1e5),
+            max_new_iterations:      int = int(1e5),
             ):
         """
         Continue chain from last iteration in file
@@ -270,41 +405,51 @@ class Likelihood:
         Need to pass an argument to sampler to not check for independent walkers
         """
 
-
-        # sampler = self.load_sampler(backend=restart_file)
+        outfile = Path(self.outpath / filename)
+        if not outfile.exists():
+            raise FileNotFoundError(f"File {outfile} not found. Run chain first.")
+        
         sampler = emcee.EnsembleSampler(
             self.nwalkers, 
             self.nparams, 
             self.log_prob,
         )
-        outfile = Path(self.outpath / filename)
-        if not outfile.exists():
-            raise FileNotFoundError(f"File {outfile} not found. Run chain first.")
-        
-        with h5py.File(outfile, "r+") as restart_file:
-            initial_step = restart_file["chain"][:][-1]
 
-            # Load tau from file if it exists, otherwise compute it
+        with h5py.File(outfile, "r+") as restart_file:
+            dset_pos  = restart_file["chain"]
+            dset_prob = restart_file["lnprob"]
+            # Load tau from file if already computed, otherwise compute it
             if "tau" in restart_file.keys():
                 old_tau = restart_file["tau"][:]
             else:
-                chain   = restart_file["chain"][:]
-                old_tau = emcee.autocorr.integrated_time(chain, c=5, tol=0, quiet=True)
+                old_tau = emcee.autocorr.integrated_time(dset_pos, c=1, tol=0, quiet=True)
 
-            """
-            EXPAND DATA SETS
-            """
+            # Save old tau in a new dataset
+            tau_index = 0
+            while f"tau_{tau_index}" in restart_file.keys():
+                tau_index += 1
+            restart_file.create_dataset(f"tau_{tau_index}", data=old_tau)
+            
+            
+            # Use last position of chain as new initial step
+            initial_step = dset_pos[-1] 
+            old_max_n = dset_pos.shape[0]
 
-            for ii, (pos, prob, state) in enumerate(sampler.sample(initial_step, iterations=max_n, progress=True)):
+            # Expand data sets to store new data
+            dset_pos.resize(old_max_n + max_new_iterations, axis=0)
+            dset_prob.resize(old_max_n + max_new_iterations, axis=0)
 
-                """
-                STORE NEW DATA 
-                """
+            for ii, (pos, prob, state) in enumerate(sampler.sample(initial_step, iterations=max_new_iterations, progress=True)):
+                # Store new data 
+                dset_pos[old_max_n + ii] = pos
+                dset_prob[old_max_n + ii] = prob
 
                 if sampler.iteration % 100:
+                    # Check for convergence every 100 iterations
                     continue
 
-                tau = sampler.get_autocorr_time(tol=0)
+                # Compute tau, but include data from previous iterations and ommit trailing zeros
+                tau = emcee.autocorr.integrated_time(dset_pos[:old_max_n+ii+1], tol=0, quiet=True)
                 converged = np.all(tau * 100 < sampler.iteration)
                 converged &= np.all(np.abs(old_tau - tau) / tau < 0.11)
 
@@ -312,6 +457,17 @@ class Likelihood:
                     break
 
                 old_tau = tau
+
+            # Resize datasets to remove potentially unused space
+            dset_pos.resize(old_max_n + sampler.iteration, axis=0)
+            dset_prob.resize(old_max_n + sampler.iteration, axis=0)
+
+            # Store the autocorrelation time
+            tau = emcee.autocorr.integrated_time(dset_pos, c=1, tol=0, quiet=True)
+            restart_file["tau"][:] = tau
+        
+        return None 
+
 
 
     def store_autocorr_time(
@@ -444,13 +600,15 @@ class Likelihood:
 
 
 
-L = Likelihood(walkers_per_param=4)
+L = Likelihood(walkers_per_param=1)
+# L.run_chain_test("resize_at_end_test.hdf5", max_n=10)
+L.continue_chain_test("resize_at_end_test.hdf5", max_new_iterations=5)
 # L.run_chain("test_fidu_1_std1e-3.hdf5")
 # L.run_chain("test_mean_1e-3_std1.hdf5")
 # L.run_chain("test_fidu_1e-3_std1.hdf5")
 
 
-# L.continue_chain()
+# L.continue_chain("test.hdf5")
 # L.plot_cosmo("test.hdf5")
 # L.plot_HOD("test2.h5")
 # L.store_chain()
