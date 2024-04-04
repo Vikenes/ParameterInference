@@ -25,28 +25,27 @@ D13_PATH = "/mn/stornext/d13/euclid_nobackup/halo/AbacusSummit/emulation_files/"
 D5_PATH = "emulator_data/vary_r/"
 
 
-class Likelihood:
+class Plot_MCMC:
     def __init__(
         self,
         data_path           = "/mn/stornext/d5/data/vetleav/HOD_AbacusData/inference_data",
         emulator_path       = "emulator_data/vary_r/emulators/compare_scaling",
         emulator_version    = 6,
-        walkers_per_param   = 4,
     ):
         self.data_path              = Path(data_path)
         self.emulator_path          = Path(f"{emulator_path}/version_{emulator_version}")
 
         emul_path_suffix            = "_".join(self.emulator_path.parts[-2:])
-        self.outpath                = Path(self.data_path / "chains" / emul_path_suffix)
-        self.outpath.mkdir(parents=True, exist_ok=True)
-         
+        self.chain_path             = Path(self.data_path / "chains" / emul_path_suffix)
+        
+        # Load parameter names, labels, priors, and fiducial values from emulator config 
         emulator_config             = self.load_config(self.emulator_path)
         self.emulator_param_names   = emulator_config["data"]["feature_columns"][:-1]
         self.HOD_param_names        = ["log10Mmin", "log10M1", "sigma_logM", "kappa", "alpha"]
         self.cosmo_param_names      = ["N_eff", "alpha_s", "ns", "sigma8", "w0", "wa", "wb", "wc"]
         self.nparams                = len(self.emulator_param_names)
-        self.nwalkers               = self.nparams * walkers_per_param
         self.param_priors           = self.get_parameter_priors()
+        self.param_labels_latex     = self.get_param_names_latex()
 
     def load_config(self, path):
         with open(path / "config.yaml", "r") as fp:
@@ -83,7 +82,6 @@ class Likelihood:
         FIDUCIAL_params         = FIDUCIAL_params.iloc[0].to_dict()
         
         Fiducial_params = [FIDUCIAL_params[param] for param in self.emulator_param_names]
-        # print(Fiducial_params)
         return Fiducial_params
 
 
@@ -123,7 +121,7 @@ class Likelihood:
             figname:    str = "test_cosmo_corner.png",
         ):
 
-        chainfile     = Path(self.outpath / filename)
+        chainfile     = Path(self.chain_path / filename)
         if not chainfile.exists():
             raise FileNotFoundError(f"File {chainfile} not found. Run chain first.")
 
@@ -136,7 +134,7 @@ class Likelihood:
             fff = h5py.File(chainfile, "r")
 
 
-        # prob  = fff["lnprob"][:] # (nsteps, nwalkers)
+        # prob  = fff["lnprob"][:] # (nsteps, nwalkers) 
         tau   = fff["tau"][:]    # (nparams,)
 
         burnin      = int(10 * np.max(tau))
@@ -153,8 +151,7 @@ class Likelihood:
         # Get indices where self.cosmo_param_names are found in self.emulator_param_names
         cosmo_indices           = [self.emulator_param_names.index(param) for param in self.cosmo_param_names]
         cosmo_samples           = samples[:, cosmo_indices] # MCMC samples for cosmological parameters
-        param_labels_latex      = self.get_param_names_latex() # Latex labels for all parameters
-        cosmo_labels            = [param_labels_latex[param] for param in self.cosmo_param_names] # Latex labels for cosmological parameters
+        cosmo_labels            = [self.param_labels_latex[param] for param in self.cosmo_param_names] # Latex labels for cosmological parameters
         fiducial_params         = self.get_fiducial_params() # Fiducial parameter values
         cosmo_fiducial_params   = [fiducial_params[i] for i in cosmo_indices] # Fiducial parameter values for cosmological parameters
         cosmo_param_ranges      = [tuple(self.param_priors[i]) for i in cosmo_indices]
@@ -178,7 +175,7 @@ class Likelihood:
             figname:  str = "test_HOD_corner.png",
         ):
 
-        chainfile     = Path(self.outpath / filename)
+        chainfile     = Path(self.chain_path / filename)
         if not chainfile.exists():
             raise FileNotFoundError(f"File {chainfile} not found. Run chain first.")
         
@@ -208,8 +205,7 @@ class Likelihood:
         # Get indices where self.HOD_param_names are found in self.emulator_param_names
         HOD_indices         = [self.emulator_param_names.index(param) for param in self.HOD_param_names]
         HOD_samples         = samples[:, HOD_indices]
-        param_labels_latex  = self.get_param_names_latex()
-        HOD_labels          = [param_labels_latex[param] for param in self.HOD_param_names]
+        HOD_labels          = [self.param_labels_latex[param] for param in self.HOD_param_names]
         fiducial_params     = self.get_fiducial_params()
         HOD_fiducial_params = [fiducial_params[i] for i in HOD_indices]
         HOD_param_ranges    = [tuple(self.param_priors[i]) for i in HOD_indices]
@@ -229,8 +225,10 @@ class Likelihood:
 
 
 
-L = Likelihood(walkers_per_param=8)
-L.plot_cosmo("test_fidu_1_std1e-3.hdf5")
+L = Plot_MCMC()
+# L.plot_cosmo("test_fidu_1_std1e-3.hdf5")
+L.plot_cosmo("test_fidu_1e-3_std1.hdf5")
+
 # L.plot_HOD("test2.h5")
 # L.store_chain()
 # L.plot_chain()
