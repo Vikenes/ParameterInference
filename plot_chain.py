@@ -229,6 +229,7 @@ class Plot_MCMC:
 
 L = Plot_MCMC()
 # L.plot_cosmo("test.hdf5")
+L.plot_cosmo("test_mean_1e-3_std1.hdf5", figname="test_mean_1e-3_std1.png")
 # L.plot_cosmo("test_fidu_1_std1e-3.hdf5", figname="test_fidu_1_std1e-3.png")
 # L.plot_cosmo("test_fidu_1e-3_std1.hdf5", figname="test_fidu_1e-3_std1.png")
 
