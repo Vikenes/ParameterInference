@@ -1,3 +1,4 @@
+import time
 import numpy as np 
 import h5py 
 from pathlib import Path
@@ -8,7 +9,6 @@ import yaml
 import emcee 
 import corner 
 import sys 
-
 import matplotlib
 # matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -20,14 +20,15 @@ matplotlib.rcParams['text.latex.preamble'] = r'\usepackage{amsmath}'
 params = {'xtick.top': True, 'ytick.right': True, 'xtick.direction': 'in', 'ytick.direction': 'in'}
 plt.rcParams.update(params)
 
-sys.path.append("/uio/hume/student-u74/vetleav/Documents/thesis/emulation/emul_utils")
-from _predict import Predictor 
 
 sys.path.append("/uio/hume/student-u74/vetleav/Documents/thesis/HOD/HaloModel/HOD_and_cosmo_emulation/parameter_samples_plot")
 
 D13_PATH = "/mn/stornext/d13/euclid_nobackup/halo/AbacusSummit/emulation_files/"
 D5_PATH = "emulator_data/vary_r/"
 
+
+sys.path.append("/uio/hume/student-u74/vetleav/Documents/thesis/emulation/emul_utils")
+from _predict import Predictor 
 class xi_emulator_class:
     def __init__(
             self, 
@@ -45,7 +46,6 @@ class xi_emulator_class:
     ):
         return self.predictor(np.array(params)).reshape(-1)
     
-
 
 
 class Likelihood:
@@ -166,8 +166,8 @@ class Likelihood:
         
         wp_theory   = self.get_wp_theory(params)
         delta       = self.w_p_data - wp_theory
-        lnprob      = -0.5 * np.einsum('i,ij,j', delta, self.cov_matrix_inv, delta) 
-        return lnprob
+        # lnprob      = -0.5 * np.einsum('i,ij,j', delta, self.cov_matrix_inv, delta) 
+        return -0.5 * delta @ self.cov_matrix_inv @ delta 
     
     def get_wp_theory(self, params):
 
@@ -199,58 +199,90 @@ class Likelihood:
         return lnprob
 
 
-    def test_log_prob(self):
-        fiduci_params = self.get_fiducial_params()
-        test_params += np.random.normal(0, 1e-3, size=len(test_params))
 
-        lnprob = self.log_prob(test_params)
-        print(lnprob)
-            
-    def load_sampler(self, 
-                     nsteps=200,
-                     backend=None 
-                     ):
-        nwalkers            = self.nwalkers
-        nparams             = self.nparams
-        
 
-        sampler = emcee.EnsembleSampler(
-            nwalkers, 
-            nparams, 
-            self.log_prob,
-            backend=backend,
-        )
-
-        return sampler
-    
     def run_chain(
             self,
-            filename = "test2.h5",
-            max_n = 100000,
+            filename: str,
+            max_n:    int = int(1e5),
             ):
-        outfile = Path(self.outpath / filename)
-        backend = emcee.backends.HDFBackend(outfile)
-        if outfile.exists():
-            rerun = input("File already exists. Overwrite? (y/n): ")
-            if rerun == "y":
-                print("Resetting backend, rerunning...")
-                backend.reset(self.nwalkers, self.nparams)
-            else:
-                proceed = input("Continue from last iteration? (y/n): ")
-                if proceed != "y":
-                    print("Exiting...")
-                    return
-                else:
-                    print("Continuing from last iteration...")
-                
-        sampler = self.load_sampler(backend=backend)
-
+        
         mean_param_values   = np.mean(self.param_priors, axis=1)
-        initial_guess  = mean_param_values + np.random.normal(0, 1e-3, size=(self.nwalkers, self.nparams))
+        init_param_values = self.get_fiducial_params()
+
+        if filename == "test_mean_1e-3_std1.hdf5":
+            initial_guess   = mean_param_values + 1e-3 * np.random.normal(0, 1, size=(self.nwalkers, self.nparams))
+        elif filename == "test_fidu_1e-3_std1.hdf5":
+            initial_guess   = init_param_values + 1e-3 * np.random.normal(0, 1, size=(self.nwalkers, self.nparams))
+        elif filename == "test_fidu_1_std1e-3.hdf5":
+            initial_guess   = init_param_values + np.random.normal(0, 1e-3, size=(self.nwalkers, self.nparams))
+        else:
+            raise ValueError("Invalid filename. Choose one of the predefined filenames.")
+
+
+        outfile = Path(self.outpath / filename)
+        if outfile.exists():
+            msg = f"File {outfile} already exists. Choose another filename.\n"
+            msg += f"  Run 'continue_chain('{outfile.name}')' to continue from last iteration."
+            raise FileExistsError(msg)
+
+        sampler = emcee.EnsembleSampler(
+            self.nwalkers, 
+            self.nparams, 
+            self.log_prob,
+        )
 
         old_tau = np.inf
 
-        for sample in sampler.sample(initial_guess, iterations=max_n, progress=True):
+        with h5py.File(outfile, "w") as f:
+            # Create resizable datasets to store the chain
+            dset_pos  = f.create_dataset("chain", (max_n, self.nwalkers, self.nparams), maxshape=(None, self.nwalkers, self.nparams))
+            dset_prob = f.create_dataset("lnprob", (max_n, self.nwalkers), maxshape=(None, self.nwalkers))
+
+            for ii, (pos, prob, state) in enumerate(sampler.sample(initial_guess, iterations=max_n, progress=True)):
+
+                dset_pos[ii] = pos
+                dset_prob[ii] = prob
+
+
+                if sampler.iteration % 100:
+                    continue
+
+                tau = sampler.get_autocorr_time(tol=0)
+                converged = np.all(tau * 100 < sampler.iteration)
+                converged &= np.all(np.abs(old_tau - tau) / tau < 0.11)
+
+                if converged:
+                    break
+
+                old_tau = tau
+
+            
+
+    def continue_chain(
+            self,
+            filename = "test.hdf5",
+            max_n = 100000,
+            ):
+        """
+        Continue chain from last iteration in file
+
+        Need to pass an argument to sampler to not check for independent walkers
+        """
+
+
+        # sampler = self.load_sampler(backend=restart_file)
+        sampler = emcee.EnsembleSampler(
+            self.nwalkers, 
+            self.nparams, 
+            self.log_prob,
+        )
+
+        initial_step = restart_file.get_last_sample().coords
+        coords = restart_file.get_last_sample().coords
+        old_tau = restart_file.get_autocorr_time(tol=0)
+
+        for sample in sampler.sample(initial_step, iterations=max_n, progress=True):
             if sampler.iteration % 100:
                 continue
 
@@ -264,58 +296,88 @@ class Likelihood:
             old_tau = tau
 
 
-    def plot_chain(self, filename = "test2.h5"):
-        outfile     = Path(self.outpath / filename)
-        if not outfile.exists():
-            raise FileNotFoundError(f"File {outfile} not found. Run chain first.")
-        reader      = emcee.backends.HDFBackend(outfile)
-        sampler     = self.load_sampler(backend=reader)
-        # tau         = reader.get_autocorr_time()
-        
-        # burnin      = int(2 * np.max(tau))
-        # thin        = int(0.5 * np.min(tau))
-        burnin = 0
-        thin = 1
-        samples     = reader.get_chain(discard=burnin, thin=thin, flat=True)
+  
+    
+    def store_autocorr_time(
+            self,
+            chainfile: Path,
+        ):
+        """
+        Estimate the autocorrelation time of all walkers in the chain 
+        store it in the chainfile
+        """
 
-        ltex_labels = self.get_param_names_latex() 
-        labels      = [ltex_labels[i] for i in self.emulator_param_names]
-        fiducial_params = self.get_fiducial_params()
-        print(f"{samples.shape=}")
-        corner.corner(
-            samples, 
-            labels=labels,
-            truths=fiducial_params,
-            )
-        plt.show()
+        file = h5py.File(chainfile, "r+")
+        chain = file["chain"][:]
+        tau = emcee.autocorr.integrated_time(chain, c=1, quiet=True)
+
+        file.create_dataset("tau", data=tau)
+        file.close()
+        return None 
 
 
     def plot_cosmo(
             self,
-            filename="test.h5",
+            filename:   str,
         ):
 
-        outfile     = Path(self.outpath / filename)
-        if not outfile.exists():
-            raise FileNotFoundError(f"File {outfile} not found. Run chain first.")
-        reader      = emcee.backends.HDFBackend(outfile)
-        sampler     = self.load_sampler(backend=reader)
-        
-        samples     = reader.get_chain(discard=0, flat=True)
+        chainfile     = Path(self.outpath / filename)
+
+
+        if not chainfile.exists():
+            raise FileNotFoundError(f"File {chainfile} not found. Run chain first.")
+
+        fff = h5py.File(chainfile, "r")
+        if not "tau" in fff.keys():
+            # Store autocorrelation time in chainfile if not already stored
+            # Computing the autocorrelation time can take a while (30+ sec)
+            fff.close()
+            self.store_autocorr_time(chainfile)
+            fff = h5py.File(chainfile, "r")
+
+
+        prob  = fff["lnprob"][:] # (nsteps, nwalkers)
+        tau   = fff["tau"][:]    # (nparams,)
+
+        burnin      = int(10 * np.max(tau))
+        thin        = int(0.5 * np.min(tau))
+        # burnin      = 0
+        thin        = 100
+
+        # Get samples from chain array
+
+        chain = fff["chain"][:]                     # (nsteps, nwalkers, nparams). Same as get_chain(discard=0, thin=1, flat=False)
+        samples = chain.reshape(-1, self.nparams)   # (nsteps * nwalkers, nparams)
+        # print(f"{burnin=}")
+        # print(f"{chain.shape=}")
+        # print(f"{samples.shape=}")
+
+        samples = samples[burnin::thin, ...]        # ((nsteps-burnin)//thin * nwalkers, nparams)
+        # print(f"{samples.shape=}")
+        # exit()
+
+
 
         # Get indices where self.cosmo_param_names are found in self.emulator_param_names
-        cosmo_indices = [self.emulator_param_names.index(param) for param in self.cosmo_param_names]
-        cosmo_samples = samples[:, cosmo_indices]
-        cosmo_labels = [self.get_param_names_latex()[param] for param in self.cosmo_param_names]
-        fiducial_params = self.get_fiducial_params()
-        cosmo_fiducial_params = [fiducial_params[i] for i in cosmo_indices]
+        cosmo_indices           = [self.emulator_param_names.index(param) for param in self.cosmo_param_names]
+        cosmo_samples           = samples[:, cosmo_indices] # MCMC samples for cosmological parameters
+        param_labels_latex      = self.get_param_names_latex() # Latex labels for all parameters
+        cosmo_labels            = [param_labels_latex[param] for param in self.cosmo_param_names] # Latex labels for cosmological parameters
+        fiducial_params         = self.get_fiducial_params() # Fiducial parameter values
+        cosmo_fiducial_params   = [fiducial_params[i] for i in cosmo_indices] # Fiducial parameter values for cosmological parameters
+        cosmo_param_ranges      = [tuple(self.param_priors[i]) for i in cosmo_indices]
+
         fig = corner.corner(
             cosmo_samples, 
             labels=cosmo_labels,
             truths=cosmo_fiducial_params,
+            range=cosmo_param_ranges,
+            max_n_ticks=3,
+            quiet=True,
             )
-        fig.savefig("figures/cosmo_corner.png", dpi=200)
-        fig.clf()
+        # fig.savefig("figures/cosmo_corner.png", dpi=200)
+        # fig.clf()
+        plt.show()
 
 
     def plot_HOD(
@@ -323,36 +385,50 @@ class Likelihood:
             filename="test.h5",
         ):
 
-        outfile     = Path(self.outpath / filename)
-        if not outfile.exists():
-            raise FileNotFoundError(f"File {outfile} not found. Run chain first.")
-        reader      = emcee.backends.HDFBackend(outfile)
-        sampler     = self.load_sampler(backend=reader)
+        chainfile     = Path(self.outpath / filename)
+        if not chainfile.exists():
+            raise FileNotFoundError(f"File {chainfile} not found. Run chain first.")
+        reader      = emcee.backends.HDFBackend(chainfile, read_only=True)
+        # sampler     = self.load_sampler(backend=reader)
+        tau         = reader.get_autocorr_time(quiet=True, tol=20)
+        burnin      = int(2 * np.max(tau))
+        thin        = int(0.5 * np.min(tau))
 
-        samples     = reader.get_chain(discard=0, flat=True)
+        samples     = reader.get_chain(discard=burnin, thin=thin, flat=True)
 
         # Get indices where self.HOD_param_names are found in self.emulator_param_names
-        HOD_indices = [self.emulator_param_names.index(param) for param in self.HOD_param_names]
-        HOD_samples = samples[:, HOD_indices]
-        HOD_labels = [self.get_param_names_latex()[param] for param in self.HOD_param_names]
-        fiducial_params = self.get_fiducial_params()
+        HOD_indices         = [self.emulator_param_names.index(param) for param in self.HOD_param_names]
+        HOD_samples         = samples[:, HOD_indices]
+        param_labels_latex  = self.get_param_names_latex()
+        HOD_labels          = [param_labels_latex[param] for param in self.HOD_param_names]
+        fiducial_params     = self.get_fiducial_params()
         HOD_fiducial_params = [fiducial_params[i] for i in HOD_indices]
+        HOD_param_ranges    = [tuple(self.param_priors[i]) for i in HOD_indices]
+
         fig = corner.corner(
             HOD_samples, 
             labels=HOD_labels,
             truths=HOD_fiducial_params,
+            range=HOD_param_ranges,
+            max_n_ticks=3,
+            use_math_text=True,
+            quiet=True,
             )
-        fig.savefig("figures/HOD_corner.png", dpi=200)
-        fig.clf()
-        
+        # fig.savefig("figures/HOD_corner.png", dpi=200)
+        # fig.clf()
+        plt.show()
 
-        
 
-L = Likelihood()
-# L.run_chain()
-L.plot_cosmo()
-L.plot_HOD()
-# L.test_log_prob()
+
+L = Likelihood(walkers_per_param=4)
+L.run_chain("test_mean_1e-3_std1.hdf5")
+L.run_chain("test_fidu_1e-3_std1.hdf5")
+L.run_chain("test_fidu_1_std1e-3.hdf5")
+
+
+# L.continue_chain()
+# L.plot_cosmo("test.hdf5")
+# L.plot_HOD("test2.h5")
 # L.store_chain()
 # L.plot_chain()
 # print(L.emulator_param_names)
