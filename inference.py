@@ -7,28 +7,15 @@ from scipy.integrate import simps
 import pandas as pd 
 import yaml 
 import emcee 
-import corner 
 import sys 
-import matplotlib
-# matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-from matplotlib import gridspec
-matplotlib.rcParams['text.usetex'] = True
-matplotlib.rcParams.update({'font.size': 12})
-matplotlib.rcParams['text.latex.preamble'] = r'\usepackage{amsmath}'
-# matplotlib.rcParams['text.latex.preamble'] = r'\usepackage{physics}'
-params = {'xtick.top': True, 'ytick.right': True, 'xtick.direction': 'in', 'ytick.direction': 'in'}
-plt.rcParams.update(params)
 
-
-sys.path.append("/uio/hume/student-u74/vetleav/Documents/thesis/HOD/HaloModel/HOD_and_cosmo_emulation/parameter_samples_plot")
+sys.path.append("/uio/hume/student-u74/vetleav/Documents/thesis/emulation/emul_utils")
+from _predict import Predictor 
 
 D13_PATH = "/mn/stornext/d13/euclid_nobackup/halo/AbacusSummit/emulation_files/"
 D5_PATH = "emulator_data/vary_r/"
 
 
-sys.path.append("/uio/hume/student-u74/vetleav/Documents/thesis/emulation/emul_utils")
-from _predict import Predictor 
 class xi_emulator_class:
     def __init__(
             self, 
@@ -350,118 +337,6 @@ class Likelihood:
         file.create_dataset("tau", data=tau)
         file.close()
         return None 
-
-
-    def plot_cosmo(
-            self,
-            filename:   str,
-            figname:    str = "test_cosmo_corner.png",
-        ):
-
-        chainfile     = Path(self.outpath / filename)
-        if not chainfile.exists():
-            raise FileNotFoundError(f"File {chainfile} not found. Run chain first.")
-
-        fff = h5py.File(chainfile, "r")
-        if not "tau" in fff.keys():
-            # Store autocorrelation time in chainfile if not already stored
-            # Computing the autocorrelation time can take a while (30+ sec)
-            fff.close()
-            self.store_autocorr_time(chainfile)
-            fff = h5py.File(chainfile, "r")
-
-
-        # prob  = fff["lnprob"][:] # (nsteps, nwalkers)
-        tau   = fff["tau"][:]    # (nparams,)
-
-        burnin      = int(10 * np.max(tau))
-        thin        = int(0.5 * np.min(tau))
-        # burnin      = 0
-        # thin        = 100
-
-
-        # Get samples from chain array
-        chain = fff["chain"][:]                     # (nsteps, nwalkers, nparams). Same as get_chain(discard=0, thin=1, flat=False)
-        samples = chain.reshape(-1, self.nparams)   # (nsteps * nwalkers, nparams)
-        samples = samples[burnin::thin, ...]        # ((nsteps-burnin)//thin * nwalkers, nparams)
-
-        # Get indices where self.cosmo_param_names are found in self.emulator_param_names
-        cosmo_indices           = [self.emulator_param_names.index(param) for param in self.cosmo_param_names]
-        cosmo_samples           = samples[:, cosmo_indices] # MCMC samples for cosmological parameters
-        param_labels_latex      = self.get_param_names_latex() # Latex labels for all parameters
-        cosmo_labels            = [param_labels_latex[param] for param in self.cosmo_param_names] # Latex labels for cosmological parameters
-        fiducial_params         = self.get_fiducial_params() # Fiducial parameter values
-        cosmo_fiducial_params   = [fiducial_params[i] for i in cosmo_indices] # Fiducial parameter values for cosmological parameters
-        cosmo_param_ranges      = [tuple(self.param_priors[i]) for i in cosmo_indices]
-
-        fig = corner.corner(
-            cosmo_samples, 
-            labels=cosmo_labels,
-            truths=cosmo_fiducial_params,
-            range=cosmo_param_ranges,
-            max_n_ticks=3,
-            quiet=True,
-            )
-        # fig.savefig(f"figures/{figname}", dpi=200)
-        # fig.clf()
-        plt.show()
-
-
-    def plot_HOD(
-            self,
-            filename: str,
-            figname:  str = "test_HOD_corner.png",
-        ):
-
-        chainfile     = Path(self.outpath / filename)
-        if not chainfile.exists():
-            raise FileNotFoundError(f"File {chainfile} not found. Run chain first.")
-        
-        fff = h5py.File(chainfile, "r")
-        if not "tau" in fff.keys():
-            # Store autocorrelation time in chainfile if not already stored
-            # Computing the autocorrelation time can take a while (30+ sec)
-            fff.close()
-            self.store_autocorr_time(chainfile)
-            fff = h5py.File(chainfile, "r")
-
-
-        # prob  = fff["lnprob"][:] # (nsteps, nwalkers)
-        tau   = fff["tau"][:]    # (nparams,)
-
-        burnin      = int(10 * np.max(tau))
-        thin        = int(0.5 * np.min(tau))
-        # burnin      = 0
-        # thin        = 100
-
-
-        # Get samples from chain array
-        chain = fff["chain"][:]                     # (nsteps, nwalkers, nparams). Same as get_chain(discard=0, thin=1, flat=False)
-        samples = chain.reshape(-1, self.nparams)   # (nsteps * nwalkers, nparams)
-        samples = samples[burnin::thin, ...]        # ((nsteps-burnin)//thin * nwalkers, nparams)
-
-        # Get indices where self.HOD_param_names are found in self.emulator_param_names
-        HOD_indices         = [self.emulator_param_names.index(param) for param in self.HOD_param_names]
-        HOD_samples         = samples[:, HOD_indices]
-        param_labels_latex  = self.get_param_names_latex()
-        HOD_labels          = [param_labels_latex[param] for param in self.HOD_param_names]
-        fiducial_params     = self.get_fiducial_params()
-        HOD_fiducial_params = [fiducial_params[i] for i in HOD_indices]
-        HOD_param_ranges    = [tuple(self.param_priors[i]) for i in HOD_indices]
-
-        fig = corner.corner(
-            HOD_samples, 
-            labels=HOD_labels,
-            truths=HOD_fiducial_params,
-            range=HOD_param_ranges,
-            max_n_ticks=3,
-            use_math_text=True,
-            quiet=True,
-            )
-        # fig.savefig(f"figures/{figname}", dpi=200)
-        # fig.clf()
-        plt.show()
-
 
 
 L = Likelihood(walkers_per_param=1)
