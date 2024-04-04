@@ -64,7 +64,7 @@ class Likelihood:
         self.emulator_param_names   = self.emulator.config["data"]["feature_columns"][:-1]
         self.HOD_param_names        = ["log10Mmin", "log10M1", "sigma_logM", "kappa", "alpha"]
         self.cosmo_param_names      = ["N_eff", "alpha_s", "ns", "sigma8", "w0", "wa", "wb", "wc"]
-        self.nparams               = len(self.emulator_param_names)
+        self.nparams                = len(self.emulator_param_names)
         self.nwalkers               = int(self.nparams * walkers_per_param)
         self.param_priors           = self.get_parameter_priors()
 
@@ -188,7 +188,7 @@ class Likelihood:
     def run_chain(
             self,
             filename: str,
-            max_n:    int = int(1e5),
+            max_n:    int = int(1e6),
             ):
         
         """
@@ -205,6 +205,13 @@ class Likelihood:
             initial_step   = init_param_values + 1e-3 * np.random.normal(0, 1, size=(self.nwalkers, self.nparams))
         elif filename == "test_fidu_1_std1e-3.hdf5":
             initial_step   = init_param_values + np.random.normal(0, 1e-3, size=(self.nwalkers, self.nparams))
+        elif filename == "test_fidu_1e-3_std1_4w_5e5.hdf5":
+            initial_step   = init_param_values + 1e-3 * np.random.normal(0, 1, size=(self.nwalkers, self.nparams))
+        elif filename == "test_fidu_1e-4_std1_4w_5e5.hdf5":
+            initial_step   = init_param_values + 1e-4 * np.random.normal(0, 1, size=(self.nwalkers, self.nparams))
+        elif filename == "test_fidu_1e-3_std1_6w_5e5.hdf5":
+            initial_step   = init_param_values + 1e-3 * np.random.normal(0, 1, size=(self.nwalkers, self.nparams))
+
         else:
             raise ValueError("Invalid filename. Choose one of the predefined filenames.")
 
@@ -232,7 +239,7 @@ class Likelihood:
                 dset_pos[ii] = pos
                 dset_prob[ii] = prob
 
-                if sampler.iteration % 100:
+                if sampler.iteration % 1000:
                     continue
 
                 tau = sampler.get_autocorr_time(tol=0)
@@ -305,7 +312,7 @@ class Likelihood:
                 dset_pos[old_max_n + ii] = pos
                 dset_prob[old_max_n + ii] = prob
 
-                if sampler.iteration % 100:
+                if sampler.iteration % 1000:
                     # Check for convergence every 100 iterations
                     continue
 
@@ -348,11 +355,15 @@ class Likelihood:
         file.close()
         return None 
 
-
-L = Likelihood(walkers_per_param=4)
+# L4 = Likelihood(walkers_per_param=4)
+L8 = Likelihood(walkers_per_param=6)
 # L.run_chain("test_fidu_1_std1e-3.hdf5")
 # L.run_chain("test_mean_1e-3_std1.hdf5")
 # L.run_chain("test_fidu_1e-3_std1.hdf5")
+# L4.run_chain("test_fidu_1e-3_std1_4w_5e5.hdf5", max_n=int(5e5))
+# L4.run_chain("test_fidu_1e-4_std1_4w_5e5.hdf5", max_n=int(5e5))
+# L8.run_chain("test_fidu_1e-3_std1_6w_5e5.hdf5", max_n=int(5e5))
+
 
 
 # L.continue_chain("test_fidu_1e-3_std1.hdf5")
