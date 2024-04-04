@@ -107,12 +107,12 @@ def main(path2config, time_likelihood):
     """
 
     # emcee parameters
-    nwalkers = nparams * ch_config_params['walkersRatio']
+    nwalkers = nparams * ch_config_params['walkersRatio'] # = 5 * 4 = 20
     nsteps = ch_config_params['burninIterations'] + ch_config_params['sampleIterations']
 
 
     # fix initial conditions
-    p_initial = params[:, 0] + np.random.normal(size=(nwalkers, nparams)) * params[:, 3][None, :]
+    p_initial = params[:, 0] + np.random.normal(size=(nwalkers, nparams)) * params[:, 3][None, :] # 20 x 5
     nsteps_use = nsteps
     pool_use = None # Or pool [= MPIPool()]
 
