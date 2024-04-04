@@ -65,7 +65,7 @@ class Likelihood:
         self.HOD_param_names        = ["log10Mmin", "log10M1", "sigma_logM", "kappa", "alpha"]
         self.cosmo_param_names      = ["N_eff", "alpha_s", "ns", "sigma8", "w0", "wa", "wb", "wc"]
         self.nparams               = len(self.emulator_param_names)
-        self.nwalkers               = self.nparams * walkers_per_param
+        self.nwalkers               = int(self.nparams * walkers_per_param)
         self.param_priors           = self.get_parameter_priors()
 
     def get_param_names_latex(self):
@@ -270,10 +270,15 @@ class Likelihood:
             self.nparams, 
             self.log_prob,
         )
+        
 
         with h5py.File(outfile, "r+") as restart_file:
             dset_pos  = restart_file["chain"]
             dset_prob = restart_file["lnprob"]
+
+            dset_walkers = dset_pos.shape[1]
+            assert dset_walkers == self.nwalkers, f"Number of walkers in file ({dset_walkers}) does not match number of walkers in class ({self.nwalkers})."
+
             # Load tau from file if already computed, otherwise compute it
             if "tau" in restart_file.keys():
                 old_tau = restart_file["tau"][:]
@@ -344,13 +349,13 @@ class Likelihood:
         return None 
 
 
-L = Likelihood(walkers_per_param=1)
+L = Likelihood(walkers_per_param=4)
 # L.run_chain("test_fidu_1_std1e-3.hdf5")
 # L.run_chain("test_mean_1e-3_std1.hdf5")
 # L.run_chain("test_fidu_1e-3_std1.hdf5")
 
 
-# L.continue_chain("test.hdf5")
+# L.continue_chain("test_fidu_1e-3_std1.hdf5")
 # L.plot_cosmo("test.hdf5")
 # L.plot_HOD("test2.h5")
 # L.store_chain()
