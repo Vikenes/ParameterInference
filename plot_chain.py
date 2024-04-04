@@ -201,6 +201,8 @@ class Plot_MCMC:
         chain = fff["chain"][:]                     # (nsteps, nwalkers, nparams). Same as get_chain(discard=0, thin=1, flat=False)
         samples = chain.reshape(-1, self.nparams)   # (nsteps * nwalkers, nparams)
         samples = samples[burnin::thin, ...]        # ((nsteps-burnin)//thin * nwalkers, nparams)
+        # samples = samples[:burnin, ...]        # ((nsteps-burnin)//thin * nwalkers, nparams)
+
 
         # Get indices where self.HOD_param_names are found in self.emulator_param_names
         HOD_indices         = [self.emulator_param_names.index(param) for param in self.HOD_param_names]
@@ -226,8 +228,9 @@ class Plot_MCMC:
 
 
 L = Plot_MCMC()
-# L.plot_cosmo("test_fidu_1_std1e-3.hdf5")
-L.plot_cosmo("test_fidu_1e-3_std1.hdf5")
+# L.plot_cosmo("test.hdf5")
+# L.plot_cosmo("test_fidu_1_std1e-3.hdf5", figname="test_fidu_1_std1e-3.png")
+# L.plot_cosmo("test_fidu_1e-3_std1.hdf5", figname="test_fidu_1e-3_std1.png")
 
 # L.plot_HOD("test2.h5")
 # L.store_chain()
