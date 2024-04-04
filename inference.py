@@ -191,6 +191,11 @@ class Likelihood:
             max_n:    int = int(1e5),
             ):
         
+        """
+        initial_step is being tested. 
+        Keeping track of all filenames belonging to different setups,
+        until testing is complete. 
+        """
         mean_param_values   = np.mean(self.param_priors, axis=1)
         init_param_values = self.get_fiducial_params()
 
@@ -290,7 +295,7 @@ class Likelihood:
             dset_pos.resize(old_max_n + max_new_iterations, axis=0)
             dset_prob.resize(old_max_n + max_new_iterations, axis=0)
 
-            for ii, (pos, prob, state) in enumerate(sampler.sample(initial_step, iterations=max_new_iterations, progress=True)):
+            for ii, (pos, prob, state) in enumerate(sampler.sample(initial_step, iterations=max_new_iterations, progress=True, skip_initial_state_check=True)):
                 # Store new data 
                 dset_pos[old_max_n + ii] = pos
                 dset_prob[old_max_n + ii] = prob
@@ -340,8 +345,6 @@ class Likelihood:
 
 
 L = Likelihood(walkers_per_param=1)
-# L.run_chain_test("resize_at_end_test.hdf5", max_n=10)
-L.continue_chain_test("resize_at_end_test.hdf5", max_new_iterations=5)
 # L.run_chain("test_fidu_1_std1e-3.hdf5")
 # L.run_chain("test_mean_1e-3_std1.hdf5")
 # L.run_chain("test_fidu_1e-3_std1.hdf5")
