@@ -335,11 +335,10 @@ class Likelihood:
     def plot_cosmo(
             self,
             filename:   str,
+            figname:    str = "test_cosmo_corner.png",
         ):
 
         chainfile     = Path(self.outpath / filename)
-
-
         if not chainfile.exists():
             raise FileNotFoundError(f"File {chainfile} not found. Run chain first.")
 
@@ -352,27 +351,19 @@ class Likelihood:
             fff = h5py.File(chainfile, "r")
 
 
-        prob  = fff["lnprob"][:] # (nsteps, nwalkers)
+        # prob  = fff["lnprob"][:] # (nsteps, nwalkers)
         tau   = fff["tau"][:]    # (nparams,)
 
         burnin      = int(10 * np.max(tau))
         thin        = int(0.5 * np.min(tau))
         # burnin      = 0
-        thin        = 100
+        # thin        = 100
+
 
         # Get samples from chain array
-
         chain = fff["chain"][:]                     # (nsteps, nwalkers, nparams). Same as get_chain(discard=0, thin=1, flat=False)
         samples = chain.reshape(-1, self.nparams)   # (nsteps * nwalkers, nparams)
-        # print(f"{burnin=}")
-        # print(f"{chain.shape=}")
-        # print(f"{samples.shape=}")
-
         samples = samples[burnin::thin, ...]        # ((nsteps-burnin)//thin * nwalkers, nparams)
-        # print(f"{samples.shape=}")
-        # exit()
-
-
 
         # Get indices where self.cosmo_param_names are found in self.emulator_param_names
         cosmo_indices           = [self.emulator_param_names.index(param) for param in self.cosmo_param_names]
@@ -391,26 +382,43 @@ class Likelihood:
             max_n_ticks=3,
             quiet=True,
             )
-        # fig.savefig("figures/cosmo_corner.png", dpi=200)
+        # fig.savefig(f"figures/{figname}", dpi=200)
         # fig.clf()
         plt.show()
 
 
     def plot_HOD(
             self,
-            filename="test.h5",
+            filename: str,
+            figname:  str = "test_HOD_corner.png",
         ):
 
         chainfile     = Path(self.outpath / filename)
         if not chainfile.exists():
             raise FileNotFoundError(f"File {chainfile} not found. Run chain first.")
-        reader      = emcee.backends.HDFBackend(chainfile, read_only=True)
-        # sampler     = self.load_sampler(backend=reader)
-        tau         = reader.get_autocorr_time(quiet=True, tol=20)
-        burnin      = int(2 * np.max(tau))
-        thin        = int(0.5 * np.min(tau))
+        
+        fff = h5py.File(chainfile, "r")
+        if not "tau" in fff.keys():
+            # Store autocorrelation time in chainfile if not already stored
+            # Computing the autocorrelation time can take a while (30+ sec)
+            fff.close()
+            self.store_autocorr_time(chainfile)
+            fff = h5py.File(chainfile, "r")
 
-        samples     = reader.get_chain(discard=burnin, thin=thin, flat=True)
+
+        # prob  = fff["lnprob"][:] # (nsteps, nwalkers)
+        tau   = fff["tau"][:]    # (nparams,)
+
+        burnin      = int(10 * np.max(tau))
+        thin        = int(0.5 * np.min(tau))
+        # burnin      = 0
+        # thin        = 100
+
+
+        # Get samples from chain array
+        chain = fff["chain"][:]                     # (nsteps, nwalkers, nparams). Same as get_chain(discard=0, thin=1, flat=False)
+        samples = chain.reshape(-1, self.nparams)   # (nsteps * nwalkers, nparams)
+        samples = samples[burnin::thin, ...]        # ((nsteps-burnin)//thin * nwalkers, nparams)
 
         # Get indices where self.HOD_param_names are found in self.emulator_param_names
         HOD_indices         = [self.emulator_param_names.index(param) for param in self.HOD_param_names]
@@ -430,7 +438,7 @@ class Likelihood:
             use_math_text=True,
             quiet=True,
             )
-        # fig.savefig("figures/HOD_corner.png", dpi=200)
+        # fig.savefig(f"figures/{figname}", dpi=200)
         # fig.clf()
         plt.show()
 
