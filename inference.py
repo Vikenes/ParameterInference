@@ -211,11 +211,11 @@ class Likelihood:
         init_param_values = self.get_fiducial_params()
 
         if filename == "test_mean_1e-3_std1.hdf5":
-            initial_guess   = mean_param_values + 1e-3 * np.random.normal(0, 1, size=(self.nwalkers, self.nparams))
+            initial_step   = mean_param_values + 1e-3 * np.random.normal(0, 1, size=(self.nwalkers, self.nparams))
         elif filename == "test_fidu_1e-3_std1.hdf5":
-            initial_guess   = init_param_values + 1e-3 * np.random.normal(0, 1, size=(self.nwalkers, self.nparams))
+            initial_step   = init_param_values + 1e-3 * np.random.normal(0, 1, size=(self.nwalkers, self.nparams))
         elif filename == "test_fidu_1_std1e-3.hdf5":
-            initial_guess   = init_param_values + np.random.normal(0, 1e-3, size=(self.nwalkers, self.nparams))
+            initial_step   = init_param_values + np.random.normal(0, 1e-3, size=(self.nwalkers, self.nparams))
         else:
             raise ValueError("Invalid filename. Choose one of the predefined filenames.")
 
@@ -239,7 +239,7 @@ class Likelihood:
             dset_pos  = f.create_dataset("chain", (max_n, self.nwalkers, self.nparams), maxshape=(None, self.nwalkers, self.nparams))
             dset_prob = f.create_dataset("lnprob", (max_n, self.nwalkers), maxshape=(None, self.nwalkers))
 
-            for ii, (pos, prob, state) in enumerate(sampler.sample(initial_guess, iterations=max_n, progress=True)):
+            for ii, (pos, prob, state) in enumerate(sampler.sample(initial_step, iterations=max_n, progress=True)):
 
                 dset_pos[ii] = pos
                 dset_prob[ii] = prob
@@ -261,8 +261,8 @@ class Likelihood:
 
     def continue_chain(
             self,
-            filename = "test.hdf5",
-            max_n = 100000,
+            filename:   str,
+            max_n:      int = int(1e5),
             ):
         """
         Continue chain from last iteration in file
@@ -277,27 +277,43 @@ class Likelihood:
             self.nparams, 
             self.log_prob,
         )
+        outfile = Path(self.outpath / filename)
+        if not outfile.exists():
+            raise FileNotFoundError(f"File {outfile} not found. Run chain first.")
+        
+        with h5py.File(outfile, "r+") as restart_file:
+            initial_step = restart_file["chain"][:][-1]
 
-        initial_step = restart_file.get_last_sample().coords
-        coords = restart_file.get_last_sample().coords
-        old_tau = restart_file.get_autocorr_time(tol=0)
+            # Load tau from file if it exists, otherwise compute it
+            if "tau" in restart_file.keys():
+                old_tau = restart_file["tau"][:]
+            else:
+                chain   = restart_file["chain"][:]
+                old_tau = emcee.autocorr.integrated_time(chain, c=5, tol=0, quiet=True)
 
-        for sample in sampler.sample(initial_step, iterations=max_n, progress=True):
-            if sampler.iteration % 100:
-                continue
+            """
+            EXPAND DATA SETS
+            """
 
-            tau = sampler.get_autocorr_time(tol=0)
-            converged = np.all(tau * 100 < sampler.iteration)
-            converged &= np.all(np.abs(old_tau - tau) / tau < 0.11)
+            for ii, (pos, prob, state) in enumerate(sampler.sample(initial_step, iterations=max_n, progress=True)):
 
-            if converged:
-                break
+                """
+                STORE NEW DATA 
+                """
 
-            old_tau = tau
+                if sampler.iteration % 100:
+                    continue
+
+                tau = sampler.get_autocorr_time(tol=0)
+                converged = np.all(tau * 100 < sampler.iteration)
+                converged &= np.all(np.abs(old_tau - tau) / tau < 0.11)
+
+                if converged:
+                    break
+
+                old_tau = tau
 
 
-  
-    
     def store_autocorr_time(
             self,
             chainfile: Path,
@@ -421,9 +437,9 @@ class Likelihood:
 
 
 L = Likelihood(walkers_per_param=4)
-L.run_chain("test_mean_1e-3_std1.hdf5")
-L.run_chain("test_fidu_1e-3_std1.hdf5")
-L.run_chain("test_fidu_1_std1e-3.hdf5")
+# L.run_chain("test_fidu_1_std1e-3.hdf5")
+# L.run_chain("test_mean_1e-3_std1.hdf5")
+# L.run_chain("test_fidu_1e-3_std1.hdf5")
 
 
 # L.continue_chain()
