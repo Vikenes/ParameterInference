@@ -41,8 +41,6 @@ class Plot_MCMC:
         # Load parameter names, labels, priors, and fiducial values from emulator config 
         emulator_config             = self.load_config(self.emulator_path)
         self.emulator_param_names   = emulator_config["data"]["feature_columns"][:-1]
-        print(f"{self.emulator_param_names=}")
-        exit()
         self.HOD_param_names        = ["log10Mmin", "log10M1", "sigma_logM", "kappa", "alpha"]
         self.cosmo_param_names      = ["N_eff", "alpha_s", "ns", "sigma8", "w0", "wa", "wb", "wc"]
         self.nparams                = len(self.emulator_param_names)
@@ -148,6 +146,7 @@ class Plot_MCMC:
             thin   = thin
         else:
             thin   = int(0.5 * np.min(tau))
+
 
 
         # Get samples from chain array
@@ -265,7 +264,8 @@ class Plot_MCMC:
 global show 
 show = True
 L = Plot_MCMC()
-L.plot_cosmo("test_fidu_1e-3_std1.hdf5", burnin=0)#, figname="test_fidu_1e-3_std1_2.png")
+# L.plot_cosmo("test_fidu_1e-3_std1.hdf5", burnin=0)#, figname="test_fidu_1e-3_std1_2.png")
+L.plot_cosmo("DEMove_fidu_std1e-3_1e5.hdf5")
 # L.plot_cosmo("converged_test_fidu_1e-3_std1_4w_5e5.hdf5")#, figname="test_fidu_1e-3_std1_4w_5e5.png")
 
 # L.plot_HOD("test_fidu_1e-3_std1.hdf5")
