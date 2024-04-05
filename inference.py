@@ -106,7 +106,7 @@ class Likelihood:
         Load covariance matrix and its inverse
         Computed from the wp data loaded in "load_wp_data()"
         """
-        cov_matrix             = np.load(self.data_path / "cov_wp_fiducial.npy")
+        cov_matrix        = np.load(self.data_path / "cov_wp_fiducial.npy")
         cov_matrix_inv    = np.linalg.inv(cov_matrix)
         return cov_matrix_inv
         
@@ -152,8 +152,7 @@ class Likelihood:
     def log_likelihood(self, params):
         
         wp_theory   = self.get_wp_theory(params)
-        delta       = self.w_p_data - wp_theory
-        # lnprob      = -0.5 * np.einsum('i,ij,j', delta, self.cov_matrix_inv, delta) 
+        delta       = wp_theory - self.w_p_data 
         return -0.5 * delta @ self.cov_matrix_inv @ delta 
     
     def get_wp_theory(self, params):
@@ -190,8 +189,9 @@ class Likelihood:
             filename:           str,
             check_convergence:  bool,
             stddev_factor:      float,
-            max_n:              int     = int(1e6),
+            max_n:              int     = int(1e5),
             check_every_n:      int     = 1000,
+            moves = emcee.moves.StretchMove()
             ):
         
 
@@ -212,6 +212,7 @@ class Likelihood:
             self.nwalkers, 
             self.nparams, 
             self.log_prob,
+            moves = moves,
         )
 
         if check_convergence:
@@ -260,6 +261,7 @@ class Likelihood:
                 tau = emcee.autocorr.integrated_time(dset_pos, c=1, tol=0, quiet=True)
                 f.create_dataset("tau", data=tau)
 
+        print(f"Completed chain run for {outfile.name}.")
         return None 
  
 
@@ -378,6 +380,9 @@ class Likelihood:
 
         # Initial chain 
         init_param_values = self.get_fiducial_params()
+        ll = self.log_likelihood(init_param_values)
+        print(f"{ll=}")
+        exit()
         np.random.seed(32)
         initial_step   = init_param_values + stddev_factor * np.random.normal(0, 1, size=(self.nwalkers, self.nparams))
 
@@ -446,19 +451,16 @@ class Likelihood:
 
 
 L4 = Likelihood(walkers_per_param=4)
-# L6 = Likelihood(walkers_per_param=6)
+# L4.run_chain_test()
 # L.run_chain("test_fidu_1_std1e-3.hdf5")
 # L.run_chain("test_mean_1e-3_std1.hdf5")
 # L.run_chain("test_fidu_1e-3_std1.hdf5")
-# L4.run_chain("test_fidu_std1e-3_4w_5e5.hdf5", check_convergence=False, stddev_sactor=1e-3, max_n=int(5e5))
-# L4.run_chain("test_fidu_std1e-4_4w_5e5.hdf5", check_convergence=False, stddev_sactor=1e-4, max_n=int(5e5))
-# L8.run_chain("test_fidu_1e-3_std1_6w_5e5.hdf5", max_n=int(5e5))
+
+# L4.run_chain("test_fidu_std1e-3_4w_5e5.hdf5", check_convergence=False, stddev_factor=1e-3, max_n=int(5e5))
+# L4.run_chain("test_fidu_std1e-4_4w_5e5.hdf5", check_convergence=False, stddev_factor=1e-4, max_n=int(5e5))
+# L4.run_chain("DEMove_fidu_std1e-3_1e5.hdf5", check_convergence=False, stddev_factor=1e-3, max_n=int(1e5), moves=emcee.moves.DEMove())
 
 
 
 # L.continue_chain("test_fidu_1e-3_std1.hdf5")
-# L.plot_cosmo("test.hdf5")
-# L.plot_HOD("test2.h5")
-# L.store_chain()
-# L.plot_chain()
-# print(L.emulator_param_names)
+
