@@ -187,39 +187,26 @@ class Likelihood:
 
     def run_chain(
             self,
-            filename: str,
-            max_n:    int = int(1e6),
+            filename:           str,
+            check_convergence:  bool,
+            stddev_factor:      float,
+            max_n:              int     = int(1e6),
+            check_every_n:      int     = 1000,
             ):
         
-        """
-        initial_step is being tested. 
-        Keeping track of all filenames belonging to different setups,
-        until testing is complete. 
-        """
-        mean_param_values   = np.mean(self.param_priors, axis=1)
-        init_param_values = self.get_fiducial_params()
-
-        if filename == "test_mean_1e-3_std1.hdf5":
-            initial_step   = mean_param_values + 1e-3 * np.random.normal(0, 1, size=(self.nwalkers, self.nparams))
-        elif filename == "test_fidu_1e-3_std1.hdf5":
-            initial_step   = init_param_values + 1e-3 * np.random.normal(0, 1, size=(self.nwalkers, self.nparams))
-        elif filename == "test_fidu_1_std1e-3.hdf5":
-            initial_step   = init_param_values + np.random.normal(0, 1e-3, size=(self.nwalkers, self.nparams))
-        elif filename == "test_fidu_1e-3_std1_4w_5e5.hdf5":
-            initial_step   = init_param_values + 1e-3 * np.random.normal(0, 1, size=(self.nwalkers, self.nparams))
-        elif filename == "test_fidu_1e-4_std1_4w_5e5.hdf5":
-            initial_step   = init_param_values + 1e-4 * np.random.normal(0, 1, size=(self.nwalkers, self.nparams))
-        elif filename == "test_fidu_1e-3_std1_6w_5e5.hdf5":
-            initial_step   = init_param_values + 1e-3 * np.random.normal(0, 1, size=(self.nwalkers, self.nparams))
-
-        else:
-            raise ValueError("Invalid filename. Choose one of the predefined filenames.")
 
         outfile = Path(self.outpath / filename)
         if outfile.exists():
             msg = f"File {outfile} already exists. Choose another filename.\n"
             msg += f"  Run 'continue_chain('{outfile.name}')' to continue from last iteration."
             raise FileExistsError(msg)
+        else:
+            print(f"Running chain, storing in {outfile}...")
+
+        # Initial chain 
+        init_param_values = self.get_fiducial_params()
+        np.random.seed(32)
+        initial_step   = init_param_values + stddev_factor * np.random.normal(0, 1, size=(self.nwalkers, self.nparams))
 
         sampler = emcee.EnsembleSampler(
             self.nwalkers, 
@@ -227,32 +214,51 @@ class Likelihood:
             self.log_prob,
         )
 
-        old_tau = np.inf
+        if check_convergence:
+            """
+            Compute autocorrelation time every check_every_n iterations and check for convergence
+            """
+            old_tau = np.inf
+            with h5py.File(outfile, "w") as f:
+                # Create resizable datasets to store the chain
+                dset_pos  = f.create_dataset("chain", (max_n, self.nwalkers, self.nparams), maxshape=(None, self.nwalkers, self.nparams))
+                dset_prob = f.create_dataset("lnprob", (max_n, self.nwalkers), maxshape=(None, self.nwalkers))
 
-        with h5py.File(outfile, "w") as f:
-            # Create resizable datasets to store the chain
-            dset_pos  = f.create_dataset("chain", (max_n, self.nwalkers, self.nparams), maxshape=(None, self.nwalkers, self.nparams))
-            dset_prob = f.create_dataset("lnprob", (max_n, self.nwalkers), maxshape=(None, self.nwalkers))
+                for ii, (pos, prob, state) in enumerate(sampler.sample(initial_step, iterations=max_n, progress=True)):
 
-            for ii, (pos, prob, state) in enumerate(sampler.sample(initial_step, iterations=max_n, progress=True)):
+                    dset_pos[ii] = pos
+                    dset_prob[ii] = prob
 
-                dset_pos[ii] = pos
-                dset_prob[ii] = prob
+                    if sampler.iteration % check_every_n:
+                        continue
 
-                if sampler.iteration % 1000:
-                    continue
+                    tau         = sampler.get_autocorr_time(tol=0)
+                    converged   = np.all(tau * 100 < sampler.iteration)
+                    converged  &= np.all(np.abs(old_tau - tau) / tau < 0.11)
 
-                tau = sampler.get_autocorr_time(tol=0)
-                converged = np.all(tau * 100 < sampler.iteration)
-                converged &= np.all(np.abs(old_tau - tau) / tau < 0.11)
+                    if converged:
+                        print(f"Chain converged after {sampler.iteration} iterations. Stopping.")
+                        break
+                    old_tau = tau
+                if not converged:
+                    print(f"Did not converge after {sampler.iteration}/{max_n} iterations")
 
-                if converged:
-                    break
+                tau = emcee.autocorr.integrated_time(dset_pos, c=1, tol=0, quiet=True)
+                f.create_dataset("tau", data=tau)
+        
+        else:
+            with h5py.File(outfile, "w") as f:
+                # Create resizable datasets to store the chain
+                dset_pos  = f.create_dataset("chain", (max_n, self.nwalkers, self.nparams), maxshape=(None, self.nwalkers, self.nparams))
+                dset_prob = f.create_dataset("lnprob", (max_n, self.nwalkers), maxshape=(None, self.nwalkers))
 
-                old_tau = tau
+                for ii, (pos, prob, state) in enumerate(sampler.sample(initial_step, iterations=max_n, progress=True)):
 
-            tau = emcee.autocorr.integrated_time(dset_pos, c=1, tol=0, quiet=True)
-            f.create_dataset("tau", data=tau)
+                    dset_pos[ii] = pos
+                    dset_prob[ii] = prob
+
+                tau = emcee.autocorr.integrated_time(dset_pos, c=1, tol=0, quiet=True)
+                f.create_dataset("tau", data=tau)
 
         return None 
  
@@ -354,14 +360,98 @@ class Likelihood:
         file.create_dataset("tau", data=tau)
         file.close()
         return None 
+    
+    def run_chain_test(
+            self,
+            filename:           str = "test_iter.hdf5",
+            check_convergence:  bool = True,
+            stddev_factor:      float = 1e-3,
+            max_n:              int     = int(10),
+            check_every_n:      int     = 5,
+            ):
+        
+        """
+        Run simple tests here, to avoid potential mistakes in the main run_chain function
+        """
+        
+        outfile = Path(self.outpath / filename)
 
-# L4 = Likelihood(walkers_per_param=4)
-L8 = Likelihood(walkers_per_param=6)
+        # Initial chain 
+        init_param_values = self.get_fiducial_params()
+        np.random.seed(32)
+        initial_step   = init_param_values + stddev_factor * np.random.normal(0, 1, size=(self.nwalkers, self.nparams))
+
+        sampler = emcee.EnsembleSampler(
+            self.nwalkers, 
+            self.nparams, 
+            self.log_prob,
+            moves=emcee.moves.StretchMove(a=2.0, live_dangerously=True)
+        )
+
+        if check_convergence:
+            """
+            Compute autocorrelation time every check_every_n iterations and check for convergence
+            """
+            old_tau = np.inf
+            with h5py.File(outfile, "w") as f:
+                # Create resizable datasets to store the chain
+                dset_pos  = f.create_dataset("chain", (max_n, self.nwalkers, self.nparams), maxshape=(None, self.nwalkers, self.nparams))
+                dset_prob = f.create_dataset("lnprob", (max_n, self.nwalkers), maxshape=(None, self.nwalkers))
+
+                for ii, (pos, prob, state) in enumerate(sampler.sample(initial_step, iterations=max_n, progress=True, skip_initial_state_check=True)):
+
+                    dset_pos[ii] = pos
+                    dset_prob[ii] = prob
+
+                    if sampler.iteration % check_every_n:
+                        continue
+
+                    tau         = sampler.get_autocorr_time(tol=0)
+                    converged   = np.all(tau * 100 < sampler.iteration)
+                    converged  &= np.all(np.abs(old_tau - tau) / tau < 0.11)
+
+                    if converged:
+                        print(f"Chain converged after {sampler.iteration} iterations. Stopping.")
+                        break
+                    old_tau = tau
+
+                if not converged:
+                    print("Yes")
+                else:
+                    print("No")
+
+                print(f"{sampler.iteration=}")
+                print(f"{max_n=}")
+                return 
+
+
+                tau = emcee.autocorr.integrated_time(dset_pos, c=1, tol=0, quiet=True)
+                f.create_dataset("tau", data=tau)
+        
+        else:
+            with h5py.File(outfile, "w") as f:
+                # Create resizable datasets to store the chain
+                dset_pos  = f.create_dataset("chain", (max_n, self.nwalkers, self.nparams), maxshape=(None, self.nwalkers, self.nparams))
+                dset_prob = f.create_dataset("lnprob", (max_n, self.nwalkers), maxshape=(None, self.nwalkers))
+
+                for ii, (pos, prob, state) in enumerate(sampler.sample(initial_step, iterations=max_n, progress=True)):
+
+                    dset_pos[ii] = pos
+                    dset_prob[ii] = prob
+
+                tau = emcee.autocorr.integrated_time(dset_pos, c=1, tol=0, quiet=True)
+                f.create_dataset("tau", data=tau)
+
+        return None 
+
+
+L4 = Likelihood(walkers_per_param=4)
+# L6 = Likelihood(walkers_per_param=6)
 # L.run_chain("test_fidu_1_std1e-3.hdf5")
 # L.run_chain("test_mean_1e-3_std1.hdf5")
 # L.run_chain("test_fidu_1e-3_std1.hdf5")
-# L4.run_chain("test_fidu_1e-3_std1_4w_5e5.hdf5", max_n=int(5e5))
-# L4.run_chain("test_fidu_1e-4_std1_4w_5e5.hdf5", max_n=int(5e5))
+# L4.run_chain("test_fidu_std1e-3_4w_5e5.hdf5", check_convergence=False, stddev_sactor=1e-3, max_n=int(5e5))
+# L4.run_chain("test_fidu_std1e-4_4w_5e5.hdf5", check_convergence=False, stddev_sactor=1e-4, max_n=int(5e5))
 # L8.run_chain("test_fidu_1e-3_std1_6w_5e5.hdf5", max_n=int(5e5))
 
 
