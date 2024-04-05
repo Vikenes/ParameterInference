@@ -268,6 +268,7 @@ class Likelihood:
     def continue_chain(
             self,
             filename:   str,
+            check_convergence:  bool,
             max_new_iterations:      int = int(1e5),
             ):
         """
@@ -286,62 +287,102 @@ class Likelihood:
             self.log_prob,
         )
         
+        if check_convergence:
+            with h5py.File(outfile, "r+") as restart_file:
+                dset_pos  = restart_file["chain"]
+                dset_prob = restart_file["lnprob"]
 
-        with h5py.File(outfile, "r+") as restart_file:
-            dset_pos  = restart_file["chain"]
-            dset_prob = restart_file["lnprob"]
+                dset_walkers = dset_pos.shape[1]
+                assert dset_walkers == self.nwalkers, f"Number of walkers in file ({dset_walkers}) does not match number of walkers in class ({self.nwalkers})."
 
-            dset_walkers = dset_pos.shape[1]
-            assert dset_walkers == self.nwalkers, f"Number of walkers in file ({dset_walkers}) does not match number of walkers in class ({self.nwalkers})."
+                # Load tau from file if already computed, otherwise compute it
+                if "tau" in restart_file.keys():
+                    old_tau = restart_file["tau"][:]
+                else:
+                    old_tau = emcee.autocorr.integrated_time(dset_pos, c=1, tol=0, quiet=True)
 
-            # Load tau from file if already computed, otherwise compute it
-            if "tau" in restart_file.keys():
-                old_tau = restart_file["tau"][:]
-            else:
-                old_tau = emcee.autocorr.integrated_time(dset_pos, c=1, tol=0, quiet=True)
+                # Save old tau in a new dataset
+                tau_index = 0
+                while f"tau_{tau_index}" in restart_file.keys():
+                    tau_index += 1
+                restart_file.create_dataset(f"tau_{tau_index}", data=old_tau)
+                
+                
+                # Use last position of chain as new initial step
+                initial_step = dset_pos[-1] 
+                old_max_n = dset_pos.shape[0]
 
-            # Save old tau in a new dataset
-            tau_index = 0
-            while f"tau_{tau_index}" in restart_file.keys():
-                tau_index += 1
-            restart_file.create_dataset(f"tau_{tau_index}", data=old_tau)
-            
-            
-            # Use last position of chain as new initial step
-            initial_step = dset_pos[-1] 
-            old_max_n = dset_pos.shape[0]
+                # Expand data sets to store new data
+                dset_pos.resize(old_max_n + max_new_iterations, axis=0)
+                dset_prob.resize(old_max_n + max_new_iterations, axis=0)
 
-            # Expand data sets to store new data
-            dset_pos.resize(old_max_n + max_new_iterations, axis=0)
-            dset_prob.resize(old_max_n + max_new_iterations, axis=0)
+                for ii, (pos, prob, state) in enumerate(sampler.sample(initial_step, iterations=max_new_iterations, progress=True, skip_initial_state_check=True)):
+                    # Store new data 
+                    dset_pos[old_max_n + ii] = pos
+                    dset_prob[old_max_n + ii] = prob
 
-            for ii, (pos, prob, state) in enumerate(sampler.sample(initial_step, iterations=max_new_iterations, progress=True, skip_initial_state_check=True)):
-                # Store new data 
-                dset_pos[old_max_n + ii] = pos
-                dset_prob[old_max_n + ii] = prob
+                    if sampler.iteration % 1000:
+                        # Check for convergence every 100 iterations
+                        continue
 
-                if sampler.iteration % 1000:
-                    # Check for convergence every 100 iterations
-                    continue
+                    # Compute tau, but include data from previous iterations and ommit trailing zeros
+                    tau = emcee.autocorr.integrated_time(dset_pos[:old_max_n+ii+1], tol=0, quiet=True)
+                    converged = np.all(tau * 100 < sampler.iteration)
+                    converged &= np.all(np.abs(old_tau - tau) / tau < 0.11)
 
-                # Compute tau, but include data from previous iterations and ommit trailing zeros
-                tau = emcee.autocorr.integrated_time(dset_pos[:old_max_n+ii+1], tol=0, quiet=True)
-                converged = np.all(tau * 100 < sampler.iteration)
-                converged &= np.all(np.abs(old_tau - tau) / tau < 0.11)
+                    if converged:
+                        break
 
-                if converged:
-                    break
+                    old_tau = tau
 
-                old_tau = tau
+                # Resize datasets to remove potentially unused space
+                dset_pos.resize(old_max_n + sampler.iteration, axis=0)
+                dset_prob.resize(old_max_n + sampler.iteration, axis=0)
 
-            # Resize datasets to remove potentially unused space
-            dset_pos.resize(old_max_n + sampler.iteration, axis=0)
-            dset_prob.resize(old_max_n + sampler.iteration, axis=0)
+                # Store the autocorrelation time
+                tau = emcee.autocorr.integrated_time(dset_pos, c=1, tol=0, quiet=True)
+                restart_file["tau"][:] = tau
+        else:
+            with h5py.File(outfile, "r+") as restart_file:
+                dset_pos  = restart_file["chain"]
+                dset_prob = restart_file["lnprob"]
 
-            # Store the autocorrelation time
-            tau = emcee.autocorr.integrated_time(dset_pos, c=1, tol=0, quiet=True)
-            restart_file["tau"][:] = tau
-        
+                dset_walkers = dset_pos.shape[1]
+                assert dset_walkers == self.nwalkers, f"Number of walkers in file ({dset_walkers}) does not match number of walkers in class ({self.nwalkers})."
+
+                # Load tau from file if already computed, otherwise compute it
+                if "tau" in restart_file.keys():
+                    old_tau = restart_file["tau"][:]
+                else:
+                    old_tau = emcee.autocorr.integrated_time(dset_pos, c=1, tol=0, quiet=True)
+
+                # Save old tau in a new dataset
+                tau_index = 0
+                while f"tau_{tau_index}" in restart_file.keys():
+                    tau_index += 1
+                restart_file.create_dataset(f"tau_{tau_index}", data=old_tau)
+                
+                # Use last position of chain as new initial step
+                initial_step = dset_pos[-1] 
+                old_max_n = dset_pos.shape[0]
+
+                # Expand data sets to store new data
+                dset_pos.resize(old_max_n + max_new_iterations, axis=0)
+                dset_prob.resize(old_max_n + max_new_iterations, axis=0)
+
+                for ii, (pos, prob, state) in enumerate(sampler.sample(initial_step, iterations=max_new_iterations, progress=True, skip_initial_state_check=True)):
+                    # Store new data 
+                    dset_pos[old_max_n + ii] = pos
+                    dset_prob[old_max_n + ii] = prob
+
+                # Resize datasets to remove potentially unused space
+                dset_pos.resize(old_max_n + sampler.iteration, axis=0)
+                dset_prob.resize(old_max_n + sampler.iteration, axis=0)
+
+                # Store the autocorrelation time
+                tau = emcee.autocorr.integrated_time(dset_pos, c=1, tol=0, quiet=True)
+                restart_file["tau"][:] = tau
+                
         return None 
 
 
@@ -459,7 +500,7 @@ L4 = Likelihood(walkers_per_param=4)
 # L4.run_chain("test_fidu_std1e-3_4w_5e5.hdf5", check_convergence=False, stddev_factor=1e-3, max_n=int(5e5))
 # L4.run_chain("test_fidu_std1e-4_4w_5e5.hdf5", check_convergence=False, stddev_factor=1e-4, max_n=int(5e5))
 # L4.run_chain("DEMove_fidu_std1e-3_1e5.hdf5", check_convergence=False, stddev_factor=1e-3, max_n=int(1e5), moves=emcee.moves.DEMove())
-
+# L4.continue_chain("DEMove_fidu_std1e-3_1e5.hdf5", check_convergence=False, max_new_iterations=int(1e5))
 
 
 # L.continue_chain("test_fidu_1e-3_std1.hdf5")
