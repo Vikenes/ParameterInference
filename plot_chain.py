@@ -41,6 +41,8 @@ class Plot_MCMC:
         # Load parameter names, labels, priors, and fiducial values from emulator config 
         emulator_config             = self.load_config(self.emulator_path)
         self.emulator_param_names   = emulator_config["data"]["feature_columns"][:-1]
+        print(f"{self.emulator_param_names=}")
+        exit()
         self.HOD_param_names        = ["log10Mmin", "log10M1", "sigma_logM", "kappa", "alpha"]
         self.cosmo_param_names      = ["N_eff", "alpha_s", "ns", "sigma8", "w0", "wa", "wb", "wc"]
         self.nparams                = len(self.emulator_param_names)
@@ -118,7 +120,9 @@ class Plot_MCMC:
     def plot_cosmo(
             self,
             filename:   str,
-            figname:    str = "test_cosmo_corner.png",
+            figname:    str = None,
+            burnin:   int = None,
+            thin:     int = None,
         ):
 
         chainfile     = Path(self.chain_path / filename)
@@ -136,11 +140,14 @@ class Plot_MCMC:
 
         # prob  = fff["lnprob"][:] # (nsteps, nwalkers) 
         tau   = fff["tau"][:]    # (nparams,)
-
-        burnin      = int(10 * np.max(tau))
-        thin        = int(0.5 * np.min(tau))
-        # burnin      = 0
-        # thin        = 100
+        if burnin is not None and type(burnin) is int:
+            burnin = burnin
+        else:
+            burnin = int(10 * np.max(tau))
+        if thin is not None and type(thin) is int:
+            thin   = thin
+        else:
+            thin   = int(0.5 * np.min(tau))
 
 
         # Get samples from chain array
@@ -164,15 +171,30 @@ class Plot_MCMC:
             max_n_ticks=3,
             quiet=True,
             )
-        # fig.savefig(f"figures/{figname}", dpi=200)
-        # fig.clf()
-        plt.show()
+        
+        if figname is None:
+            # Set figname to cosmo_filename-stem.png
+            figname = f"cosmo_{filename.split('.')[0]}.png"
+
+        output_file = Path(f"figures/{figname}")
+        if output_file.exists():
+            print(f"File {output_file} already exists. Adding _new to filename.")
+            figname = f"{output_file.stem}_new{output_file.suffix}"
+            output_file = Path(f"figures/{figname}")
+        
+        if show:
+            plt.show()
+        else:
+            fig.savefig(output_file, dpi=200)
+            fig.clf()
 
 
     def plot_HOD(
             self,
             filename: str,
-            figname:  str = "test_HOD_corner.png",
+            figname:  str = None,
+            burnin:   int = None,
+            thin:     int = None,
         ):
 
         chainfile     = Path(self.chain_path / filename)
@@ -190,11 +212,14 @@ class Plot_MCMC:
 
         # prob  = fff["lnprob"][:] # (nsteps, nwalkers)
         tau   = fff["tau"][:]    # (nparams,)
-
-        burnin      = int(10 * np.max(tau))
-        thin        = int(0.5 * np.min(tau))
-        # burnin      = 0
-        # thin        = 100
+        if burnin is not None and type(burnin) is int:
+            burnin = burnin
+        else:
+            burnin = int(10 * np.max(tau))
+        if thin is not None and type(thin) is int:
+            thin   = thin
+        else:
+            thin   = int(0.5 * np.min(tau))
 
 
         # Get samples from chain array
@@ -221,19 +246,28 @@ class Plot_MCMC:
             use_math_text=True,
             quiet=True,
             )
-        # fig.savefig(f"figures/{figname}", dpi=200)
-        # fig.clf()
-        plt.show()
+        if figname is None:
+            # Set figname to HOD_filename-stem.png.
+            figname = f"HOD_{filename.split('.')[0]}.png"
+
+        output_file = Path(f"figures/{figname}")
+        if output_file.exists():
+            print(f"File {output_file} already exists. Adding _new to filename.")
+            figname = f"{output_file.stem}_new{output_file.suffix}"
+            output_file = Path(f"figures/{figname}")
+        if show:
+            plt.show()
+        else:
+            fig.savefig(output_file, dpi=200)
+            fig.clf()
 
 
-
+global show 
+show = True
 L = Plot_MCMC()
-# L.plot_cosmo("test.hdf5")
-L.plot_cosmo("test_mean_1e-3_std1.hdf5", figname="test_mean_1e-3_std1.png")
-# L.plot_cosmo("test_fidu_1_std1e-3.hdf5", figname="test_fidu_1_std1e-3.png")
-# L.plot_cosmo("test_fidu_1e-3_std1.hdf5", figname="test_fidu_1e-3_std1.png")
+L.plot_cosmo("test_fidu_1e-3_std1.hdf5", burnin=0)#, figname="test_fidu_1e-3_std1_2.png")
+# L.plot_cosmo("converged_test_fidu_1e-3_std1_4w_5e5.hdf5")#, figname="test_fidu_1e-3_std1_4w_5e5.png")
 
-# L.plot_HOD("test2.h5")
-# L.store_chain()
-# L.plot_chain()
-# print(L.emulator_param_names)
+# L.plot_HOD("test_fidu_1e-3_std1.hdf5")
+# L.plot_HOD("converged_test_fidu_1e-3_std1_4w_5e5.hdf5")#, figname="test_fidu_1e-3_std1_4w_5e5.png")
+
