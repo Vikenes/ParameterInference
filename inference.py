@@ -267,9 +267,10 @@ class Likelihood:
 
     def continue_chain(
             self,
-            filename:   str,
+            filename:           str,
             check_convergence:  bool,
-            max_new_iterations:      int = int(1e5),
+            max_new_iterations: int  = int(1e5),
+            moves                    = emcee.moves.StretchMove()
             ):
         """
         Continue chain from last iteration in file
@@ -280,11 +281,14 @@ class Likelihood:
         outfile = Path(self.outpath / filename)
         if not outfile.exists():
             raise FileNotFoundError(f"File {outfile} not found. Run chain first.")
+        else:
+            print(f"Continuing chain from {outfile.name}, running {max_new_iterations} new steps...")
         
         sampler = emcee.EnsembleSampler(
             self.nwalkers, 
             self.nparams, 
             self.log_prob,
+            moves = moves,
         )
         
         if check_convergence:
@@ -342,6 +346,7 @@ class Likelihood:
                 # Store the autocorrelation time
                 tau = emcee.autocorr.integrated_time(dset_pos, c=1, tol=0, quiet=True)
                 restart_file["tau"][:] = tau
+        
         else:
             with h5py.File(outfile, "r+") as restart_file:
                 dset_pos  = restart_file["chain"]
@@ -407,10 +412,8 @@ class Likelihood:
     def run_chain_test(
             self,
             filename:           str = "test_iter.hdf5",
-            check_convergence:  bool = True,
-            stddev_factor:      float = 1e-3,
-            max_n:              int     = int(10),
-            check_every_n:      int     = 5,
+            check_convergence:  bool = False,
+            moves                    = emcee.moves.StretchMove()
             ):
         
         """
@@ -419,20 +422,40 @@ class Likelihood:
         
         outfile = Path(self.outpath / filename)
 
-        # Initial chain 
-        init_param_values = self.get_fiducial_params()
-        ll = self.log_likelihood(init_param_values)
-        print(f"{ll=}")
-        exit()
-        np.random.seed(32)
-        initial_step   = init_param_values + stddev_factor * np.random.normal(0, 1, size=(self.nwalkers, self.nparams))
-
         sampler = emcee.EnsembleSampler(
             self.nwalkers, 
             self.nparams, 
             self.log_prob,
-            moves=emcee.moves.StretchMove(a=2.0, live_dangerously=True)
+            moves=moves,
         )
+        # Initial chain 
+        with h5py.File(outfile, "r") as restart_file:
+                max_new_iterations = 1000
+                dset_pos  = restart_file["chain"]
+                dset_prob = restart_file["lnprob"]
+
+                dset_walkers = dset_pos.shape[1]
+                assert dset_walkers == self.nwalkers, f"Number of walkers in file ({dset_walkers}) does not match number of walkers in class ({self.nwalkers})."
+
+                # Use last position of chain as new initial step
+                initial_step = dset_pos[-1] 
+                old_max_n = dset_pos.shape[0]
+
+                print("Beginning")
+                for ii, (pos, prob, state) in enumerate(sampler.sample(initial_step, iterations=max_new_iterations, progress=True, skip_initial_state_check=True)):
+                    # Store new data 
+                    # dset_pos[old_max_n + ii] = pos
+                    # dset_prob[old_max_n + ii] = prob
+                    print(f"{ii=}")
+                    print(f"{pos=}")
+                    input("Continue???")
+                    print()
+
+        init_param_values = self.get_fiducial_params()
+        ll = self.log_likelihood(init_param_values)
+        print(f"{ll=}")
+        exit()
+       
 
         if check_convergence:
             """
@@ -491,17 +514,17 @@ class Likelihood:
         return None 
 
 
-L4 = Likelihood(walkers_per_param=4)
-# L4.run_chain_test()
-# L.run_chain("test_fidu_1_std1e-3.hdf5")
-# L.run_chain("test_mean_1e-3_std1.hdf5")
-# L.run_chain("test_fidu_1e-3_std1.hdf5")
+"""
+TODO:
 
-# L4.run_chain("test_fidu_std1e-3_4w_5e5.hdf5", check_convergence=False, stddev_factor=1e-3, max_n=int(5e5))
-# L4.run_chain("test_fidu_std1e-4_4w_5e5.hdf5", check_convergence=False, stddev_factor=1e-4, max_n=int(5e5))
-# L4.run_chain("DEMove_fidu_std1e-3_1e5.hdf5", check_convergence=False, stddev_factor=1e-3, max_n=int(1e5), moves=emcee.moves.DEMove())
-# L4.continue_chain("DEMove_fidu_std1e-3_1e5.hdf5", check_convergence=False, max_new_iterations=int(1e5))
+ - Implement method for keeping certain parameters fixed
+ - Make som plots of wp_theory to ensure that it's reasonable. 
 
+"""
 
-# L.continue_chain("test_fidu_1e-3_std1.hdf5")
+# L4 = Likelihood(walkers_per_param=4)
+# L8 = Likelihood(walkers_per_param=8)
+# L12 = Likelihood(walkers_per_param=12)
+
+# L12.continue_chain("DEMove_fidu_std1e-3_12w.hdf5", check_convergence=False, max_new_iterations=int(2e5))
 
