@@ -137,6 +137,7 @@ class Plot_MCMC:
 
 
         # prob  = fff["lnprob"][:] # (nsteps, nwalkers) 
+        # tau   = fff["tau_0"][:]    # (nparams,)
         tau   = fff["tau"][:]    # (nparams,)
         if burnin is not None and type(burnin) is int:
             burnin = burnin
@@ -170,6 +171,9 @@ class Plot_MCMC:
             max_n_ticks=3,
             quiet=True,
             )
+        if show:
+            plt.show()
+            return 
         
         if figname is None:
             # Set figname to cosmo_filename-stem.png
@@ -181,11 +185,8 @@ class Plot_MCMC:
             figname = f"{output_file.stem}_new{output_file.suffix}"
             output_file = Path(f"figures/{figname}")
         
-        if show:
-            plt.show()
-        else:
-            fig.savefig(output_file, dpi=200)
-            fig.clf()
+        fig.savefig(output_file, dpi=200)
+        fig.clf()
 
 
     def plot_HOD(
@@ -245,6 +246,10 @@ class Plot_MCMC:
             use_math_text=True,
             quiet=True,
             )
+        
+        if show:
+            plt.show()
+            return
         if figname is None:
             # Set figname to HOD_filename-stem.png.
             figname = f"HOD_{filename.split('.')[0]}.png"
@@ -254,18 +259,16 @@ class Plot_MCMC:
             print(f"File {output_file} already exists. Adding _new to filename.")
             figname = f"{output_file.stem}_new{output_file.suffix}"
             output_file = Path(f"figures/{figname}")
-        if show:
-            plt.show()
-        else:
-            fig.savefig(output_file, dpi=200)
-            fig.clf()
+        fig.savefig(output_file, dpi=200)
+        fig.clf()
 
 
 global show 
 show = True
 L = Plot_MCMC()
 # L.plot_cosmo("test_fidu_1e-3_std1.hdf5", burnin=0)#, figname="test_fidu_1e-3_std1_2.png")
-L.plot_cosmo("DEMove_fidu_std1e-3_1e5.hdf5")
+L.plot_cosmo("test_fidu_1e-3_std1_6w_5e5.hdf5")
+# L.plot_cosmo("DEMove_fidu_std1e-3_1e5.hdf5", thin=200)
 # L.plot_cosmo("converged_test_fidu_1e-3_std1_4w_5e5.hdf5")#, figname="test_fidu_1e-3_std1_4w_5e5.png")
 
 # L.plot_HOD("test_fidu_1e-3_std1.hdf5")
