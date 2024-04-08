@@ -217,15 +217,14 @@ class Likelihood:
         initial_step   = init_param_values + stddev_factor * np.random.normal(0, 1, size=(self.nwalkers, self.nparams))
 
         r_perp = self.r_perp 
-        # fig, ax = plt.subplots(ncols=2, figsize=(12,8))
         fig, ax = plt.subplots(2, 2, figsize=(14,10))
 
 
-        ax[0][0].plot(r_perp, r_perp * self.w_p_data, "o-", color="red", lw=1, ms=2, label="mean", zorder=100)
-        ax[0][1].plot(r_perp, r_perp * self.w_p_data, "o-", color="red", lw=1, ms=2, label="mean", zorder=100)
+        ax[0][0].plot(r_perp, r_perp * self.w_p_data, "o-", color="red", lw=1, ms=2, label="mean data", zorder=100)
+        ax[0][1].plot(r_perp, r_perp * self.w_p_data, "o-", color="red", lw=1, ms=2, label="mean data", zorder=100)
 
-        ax[0][0].plot([], "--", lw=0.7, alpha=0.7, c='gray', label="theory")
-        ax[0][1].plot([], "--", lw=0.7, alpha=0.7, c='gray', label="theory")
+        ax[0][0].plot([], "--", lw=0.7, alpha=0.7, c='gray', label="emulator")
+        ax[0][1].plot([], "--", lw=0.7, alpha=0.7, c='gray', label="emulator")
 
 
         errors   = np.zeros((initial_step.shape[0], len(r_perp)))
@@ -238,25 +237,16 @@ class Likelihood:
             wp_theory = self.get_wp_theory(params)
             err = np.abs(wp_theory / self.w_p_data - 1)
             errors[i] = err 
-            # log_like[i] = self.log_likelihood(params)
             ll, delta = self.log_likelihood(params)
             log_like[i] = ll
             if ll < 0:
                 ax[0][0].plot(r_perp, r_perp * wp_theory, "--", lw=0.7, alpha=0.7)
-                # ax[0][0].plot(r_perp, delta, "o-", lw=0.5, alpha=0.7, ms=2)
-                ax[1][0].plot(*[i, ll], "o", ms=2, lw=0.7)#, label="log_like")
+                ax[1][0].plot(*[i, ll], "o", ms=5, lw=0.7)#, label="log_like")
             else:
                 ax[0][1].plot(r_perp, r_perp * wp_theory, "--", lw=0.7, alpha=0.7)
-                # ax[0][1].plot(r_perp, delta, "o-", lw=0.5, alpha=0.7, ms=2)
-                ax[1][1].plot(*[i, ll], "o", ms=2, lw=0.7)
+                ax[1][1].plot(*[i, ll], "o", ms=5, lw=0.7)
 
 
-
-            # ax.plot(r_perp, wp_theory, "--", lw=0.5, alpha=0.5)
-
-        # print(log_like)
-        # exit()
-        # ax.plot(np.arange(len(log_like)), log_like, "o", ms=2, lw=0.7, label="log_like")
         ax[0][0].set_title(r"$\log \mathcal{L} < 0$")
         ax[1][0].set_title(r"$\log \mathcal{L} < 0$")
 
@@ -278,27 +268,26 @@ class Likelihood:
         ax[0][0].set_xlabel(r"$r_\perp \: [h^{-1} \mathrm{Mpc}]$", fontsize=10)
         ax[0][1].set_xlabel(r"$r_\perp \: [h^{-1} \mathrm{Mpc}]$", fontsize=10)
 
-        ax[1][0].set_xlabel("idx")
-        ax[1][1].set_xlabel("idx")
+        ax[1][0].set_xlabel("Sample number")
+        ax[1][1].set_xlabel("Sample number")
 
-        ax[0][0].set_ylabel(r"$w_p(r_\perp) \: [h^{-2} \mathrm{Mpc}^{2}]$", fontsize=10)
-        ax[0][1].set_ylabel(r"$w_p(r_\perp) \: [h^{-2} \mathrm{Mpc}^{2}]$", fontsize=10)
+        ax[0][0].set_ylabel(r"$r_\perp w_p(r_\perp)$", fontsize=15)
+        ax[0][1].set_ylabel(r"$r_\perp w_p(r_\perp)$", fontsize=15)
         ax[1][0].set_ylabel(r"$\log \mathcal{L}$")
         ax[1][1].set_ylabel(r"$\log \mathcal{L}$")
 
         ax[0][0].legend()
         ax[0][1].legend()
-        # ax[1][0].legend()
 
         # Increase spacing between top and bottom plots
         plt.subplots_adjust(hspace=0.3)
 
-        plt.show()
-        # fig.savefig("figures/likelihood_tests/delta_L.png", dpi=200)
-        # fig.clf()
+        # plt.show()
+        fig.savefig("figures/likelihood_tests/wp_L.png", dpi=200, bbox_inches="tight")
+        fig.clf()
 
 
-        exit()
+        return 
 
         sampler = emcee.EnsembleSampler(
             self.nwalkers, 
@@ -333,19 +322,8 @@ class Likelihood:
         # fig, ax = plt.subplots(ncols=2, figsize=(12,8))
         fig, ax = plt.subplots(2, 2, figsize=(14,10))
 
-
-        # ax[0][0].plot(r_perp, r_perp * self.w_p_data, "o-", color="red", lw=1, ms=2, label="mean", zorder=100)
-        # ax[0][1].plot(r_perp, r_perp * self.w_p_data, "o-", color="red", lw=1, ms=2, label="mean", zorder=100)
-
-        # ax[0][0].plot([], "--", lw=0.7, alpha=0.7, c='gray', label="theory")
-        # ax[0][1].plot([], "--", lw=0.7, alpha=0.7, c='gray', label="theory")
-
-
         errors   = np.zeros((initial_step.shape[0], len(r_perp)))
         log_like = np.zeros(initial_step.shape[0])
-
-        ll_neg = []
-        ll_pos = []
 
         for i, params in enumerate(initial_step):
             wp_theory = self.get_wp_theory(params)
@@ -355,21 +333,13 @@ class Likelihood:
             ll, delta = self.log_likelihood(params)
             log_like[i] = ll
             if ll < 0:
-                # ax[0][0].plot(r_perp, r_perp * wp_theory, "--", lw=0.7, alpha=0.7)
                 ax[0][0].plot(r_perp, delta, "o-", lw=0.5, alpha=0.7, ms=2)
-                ax[1][0].plot(*[i, ll], "o", ms=2, lw=0.7)#, label="log_like")
+                ax[1][0].plot(*[i, ll], "o", ms=5, lw=0.7)#, label="log_like")
             else:
-                # ax[0][1].plot(r_perp, r_perp * wp_theory, "--", lw=0.7, alpha=0.7)
                 ax[0][1].plot(r_perp, delta, "o-", lw=0.5, alpha=0.7, ms=2)
-                ax[1][1].plot(*[i, ll], "o", ms=2, lw=0.7)
+                ax[1][1].plot(*[i, ll], "o", ms=5, lw=0.7)
 
 
-
-            # ax.plot(r_perp, wp_theory, "--", lw=0.5, alpha=0.5)
-
-        # print(log_like)
-        # exit()
-        # ax.plot(np.arange(len(log_like)), log_like, "o", ms=2, lw=0.7, label="log_like")
         ax[0][0].set_title(r"$\log \mathcal{L} < 0$")
         ax[1][0].set_title(r"$\log \mathcal{L} < 0$")
 
@@ -379,20 +349,14 @@ class Likelihood:
 
 
         ax[0][0].set_xscale("log")
-        # ax[0][0].set_yscale("log")
         ax[0][1].set_xscale("log")
-        # ax[0][1].set_yscale("log")
 
-        ax[1][0].set_xscale("linear")
-        ax[1][0].set_yscale("linear")
-        ax[1][1].set_xscale("linear")
-        ax[1][1].set_yscale("linear")
 
         ax[0][0].set_xlabel(r"$r_\perp \: [h^{-1} \mathrm{Mpc}]$", fontsize=10)
         ax[0][1].set_xlabel(r"$r_\perp \: [h^{-1} \mathrm{Mpc}]$", fontsize=10)
 
-        ax[1][0].set_xlabel("idx")
-        ax[1][1].set_xlabel("idx")
+        ax[1][0].set_xlabel("Sample number")
+        ax[1][1].set_xlabel("Sample number")
 
         ax[0][0].set_ylabel(r"$\Delta = (w_p^\mathrm{emul} - \overline{w_p})$", fontsize=15) # \: [h^{-2} \mathrm{Mpc}^{2}]$", fontsize=10)
         ax[0][1].set_ylabel(r"$\Delta = (w_p^\mathrm{emul} - \overline{w_p})$", fontsize=15) # \: [h^{-2} \mathrm{Mpc}^{2}]$", fontsize=10)
@@ -408,11 +372,11 @@ class Likelihood:
         plt.subplots_adjust(hspace=0.3)
 
         # plt.show()
-        fig.savefig("figures/likelihood_tests/delta_L.png", dpi=200)
+        fig.savefig("figures/likelihood_tests/delta_L.png", dpi=200, bbox_inches="tight")
         fig.clf()
 
 
-        exit()
+        return 
 
 
 
@@ -425,8 +389,8 @@ TODO:
 """
 
 L4 = Likelihood(walkers_per_param=4)
-L4.plot_delta_likelihood("test.hdf5", stddev_factor=1e-3, max_n=int(10))
-# L4.plot_wp_likelihood("test.hdf5", stddev_factor=1e-3, max_n=int(10))
+# L4.plot_delta_likelihood("test.hdf5", stddev_factor=1e-3, max_n=int(10))
+L4.plot_wp_likelihood("test.hdf5", stddev_factor=1e-3, max_n=int(10))
 
 # L8 = Likelihood(walkers_per_param=8)
 # L12 = Likelihood(walkers_per_param=12)
