@@ -121,7 +121,7 @@ class Likelihood:
         cov_matrix        = np.load(self.data_path / "cov_wp_fiducial.npy")
         # cov_matrix        = np.load(self.data_path / "corrcoef_wp_fiducial.npy")
 
-        # cov_matrix = np.where(cov_matrix < 0, 0, cov_matrix)
+        cov_matrix = np.where(cov_matrix < 0, 0, cov_matrix)
         cov_matrix_inv    = np.linalg.inv(cov_matrix)
         return cov_matrix_inv
         
@@ -282,9 +282,9 @@ class Likelihood:
         # Increase spacing between top and bottom plots
         plt.subplots_adjust(hspace=0.3)
 
-        # plt.show()
-        fig.savefig("figures/likelihood_tests/wp_L.png", dpi=200, bbox_inches="tight")
-        fig.clf()
+        plt.show()
+        # fig.savefig("figures/likelihood_tests/wp_L.png", dpi=200, bbox_inches="tight")
+        # fig.clf()
 
 
         return 
@@ -371,9 +371,9 @@ class Likelihood:
         # Increase spacing between top and bottom plots
         plt.subplots_adjust(hspace=0.3)
 
-        # plt.show()
-        fig.savefig("figures/likelihood_tests/delta_L.png", dpi=200, bbox_inches="tight")
-        fig.clf()
+        plt.show()
+        # fig.savefig("figures/likelihood_tests/delta_L.png", dpi=200, bbox_inches="tight")
+        # fig.clf()
 
 
         return 
@@ -389,7 +389,7 @@ TODO:
 """
 
 L4 = Likelihood(walkers_per_param=4)
-# L4.plot_delta_likelihood("test.hdf5", stddev_factor=1e-3, max_n=int(10))
+L4.plot_delta_likelihood("test.hdf5", stddev_factor=1e-3, max_n=int(10))
 L4.plot_wp_likelihood("test.hdf5", stddev_factor=1e-3, max_n=int(10))
 
 # L8 = Likelihood(walkers_per_param=8)
