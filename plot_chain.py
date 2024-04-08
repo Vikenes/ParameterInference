@@ -113,14 +113,44 @@ class Plot_MCMC:
         file.create_dataset("tau", data=tau)
         file.close()
         return None 
+    
+    def test_autocorr_time(
+            self,
+            filename: str,
+        ):
+        chainfile = Path(self.chain_path / filename)
+        fff = h5py.File(chainfile, "r")
+        chain = fff["chain"][:]
+        tau = emcee.autocorr.integrated_time(chain, c=5, quiet=True)
+        print(f"{filename=}")
+        print(f"{chain.shape=}")
+        print(f"{np.max(tau)=:7.4f} | {np.min(tau)=:7.4f}")
+        print()
+        print(f"{tau=}")
+        return None
 
+    def print_autocorr_time(
+            self,
+            filename: str,
+            steps: int,
+            tau: np.ndarray,
+        ):
+        tau_min = np.min(tau)
+        tau_max = np.max(tau)
+
+        print(f"{filename} | {steps=}")
+        print(f"{tau_min =:10.2f} | {steps/tau_min =:4.2f}")
+        print(f"{tau_max =:10.2f} | {steps/tau_max =:4.2f}")
+        print()
+        return None
 
     def plot_cosmo(
             self,
             filename:   str,
-            figname:    str = None,
-            burnin:   int = None,
-            thin:     int = None,
+            figname:    str  = None,
+            burnin:     int  = None,
+            thin:       int  = None,
+            print_tau:  bool = False,
         ):
 
         chainfile     = Path(self.chain_path / filename)
@@ -148,10 +178,12 @@ class Plot_MCMC:
         else:
             thin   = int(0.5 * np.min(tau))
 
-
-
-        # Get samples from chain array
         chain = fff["chain"][:]                     # (nsteps, nwalkers, nparams). Same as get_chain(discard=0, thin=1, flat=False)
+        n_steps = chain.shape[0]
+        if print_tau:
+            self.print_autocorr_time(filename, n_steps, tau)
+            return 
+     
         samples = chain.reshape(-1, self.nparams)   # (nsteps * nwalkers, nparams)
         samples = samples[burnin::thin, ...]        # ((nsteps-burnin)//thin * nwalkers, nparams)
 
@@ -172,6 +204,8 @@ class Plot_MCMC:
             quiet=True,
             )
         if show:
+            # Add figure title
+            fig.suptitle(f"{filename}, {n_steps} steps", fontsize=16)
             plt.show()
             return 
         
@@ -266,9 +300,25 @@ class Plot_MCMC:
 global show 
 show = True
 L = Plot_MCMC()
+# L.plot_cosmo("test_fidu_std1e-3_4w_5e5.hdf5")
+# L.plot_cosmo("test_fidu_std1e-4_4w_5e5.hdf5")
+# L.plot_cosmo("test_fidu_std1e-3_6w_5e5.hdf5")
+
+L.plot_cosmo("DEMove_fidu_std1e-3_1e5.hdf5", print_tau=True)
+L.plot_cosmo("DEMove_fidu_std1e-3_8w.hdf5", print_tau=True)
+L.plot_cosmo("DEMove_fidu_std1e-3_12w.hdf5", print_tau=True)
+L.plot_cosmo("DESnookerMove_fidu_std1e-3_8w.hdf5", print_tau=True)
+
+# L.test_autocorr_time("converged_test_fidu_1e-3_std1_4w_5e5.hdf5")
+
+# L.plot_cosmo("test_fidu_1e-3_std1.hdf5")
+
 # L.plot_cosmo("test_fidu_1e-3_std1.hdf5", burnin=0)#, figname="test_fidu_1e-3_std1_2.png")
-L.plot_cosmo("test_fidu_1e-3_std1_6w_5e5.hdf5")
+# L.plot_cosmo("test_fidu_1e-3_std1_6w_5e5.hdf5")
 # L.plot_cosmo("DEMove_fidu_std1e-3_1e5.hdf5", thin=200)
+# L.plot_cosmo("DEMove_fidu_std1e-3_1e5.hdf5", thin=200)
+# L.plot_cosmo("DESnookerMove_fidu_std1e-3_8w.hdf5")
+
 # L.plot_cosmo("converged_test_fidu_1e-3_std1_4w_5e5.hdf5")#, figname="test_fidu_1e-3_std1_4w_5e5.png")
 
 # L.plot_HOD("test_fidu_1e-3_std1.hdf5")
