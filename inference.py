@@ -9,22 +9,11 @@ import yaml
 import emcee 
 import sys 
 
+sys.path.append("/uio/hume/student-u74/vetleav/Documents/thesis/emulation/emul_utils")
+from _predict import Predictor 
 
 D13_PATH = "/mn/stornext/d13/euclid_nobackup/halo/AbacusSummit/emulation_files/"
 D5_PATH = "emulator_data/vary_r/"
-
-import matplotlib
-import matplotlib.pyplot as plt
-from matplotlib import gridspec
-matplotlib.rcParams['text.usetex'] = True
-matplotlib.rcParams.update({'font.size': 12})
-matplotlib.rcParams['text.latex.preamble'] = r'\usepackage{amsmath}'
-matplotlib.rcParams['text.latex.preamble'] = r'\usepackage{physics}'
-params = {'xtick.top': True, 'ytick.right': True, 'xtick.direction': 'in', 'ytick.direction': 'in'}
-plt.rcParams.update(params)
-
-sys.path.append("/uio/hume/student-u74/vetleav/Documents/thesis/emulation/emul_utils")
-from _predict import Predictor 
 
 
 class xi_emulator_class:
@@ -68,7 +57,6 @@ class Likelihood:
         self.emulator       = xi_emulator_class(emulator_path, emulator_version)
 
         self.r              = self.get_r_from_fiducial_xi()
-        self.r = self.r[self.r <= 60]
         self.r_emul_input   = self.r.reshape(-1,1)
         self.r_para         = np.linspace(0, int(np.max(self.r)), int(1000))
         self.r_from_rp_rpi  = np.sqrt(self.r_perp.reshape(-1,1)**2 + self.r_para.reshape(1,-1)**2)
@@ -119,9 +107,6 @@ class Likelihood:
         Computed from the wp data loaded in "load_wp_data()"
         """
         cov_matrix        = np.load(self.data_path / "cov_wp_fiducial.npy")
-        # cov_matrix        = np.load(self.data_path / "corrcoef_wp_fiducial.npy")
-
-        cov_matrix = np.where(cov_matrix < 0, 0, cov_matrix)
         cov_matrix_inv    = np.linalg.inv(cov_matrix)
         return cov_matrix_inv
         
@@ -168,8 +153,7 @@ class Likelihood:
         
         wp_theory   = self.get_wp_theory(params)
         delta       = wp_theory - self.w_p_data 
-        # return -0.5 * np.einsum("i,ij,j", delta, self.cov_matrix_inv, delta)
-        return -0.5 * delta @ self.cov_matrix_inv @ delta, delta 
+        return -0.5 * delta @ self.cov_matrix_inv @ delta 
     
     def get_wp_theory(self, params):
 
@@ -200,94 +184,29 @@ class Likelihood:
             lnprob = -np.inf
         return lnprob
 
-    def plot_wp_likelihood(
+    def run_chain(
             self,
             filename:           str,
+            check_convergence:  bool,
             stddev_factor:      float,
             max_n:              int     = int(1e5),
+            check_every_n:      int     = 1000,
             moves = emcee.moves.StretchMove()
             ):
         
 
-        
+        outfile = Path(self.outpath / filename)
+        if outfile.exists():
+            msg = f"File {outfile} already exists. Choose another filename.\n"
+            msg += f"  Run 'continue_chain('{outfile.name}')' to continue from last iteration."
+            raise FileExistsError(msg)
+        else:
+            print(f"Running chain, storing in {outfile}...")
 
         # Initial chain 
         init_param_values = self.get_fiducial_params()
         np.random.seed(32)
         initial_step   = init_param_values + stddev_factor * np.random.normal(0, 1, size=(self.nwalkers, self.nparams))
-
-        r_perp = self.r_perp 
-        fig, ax = plt.subplots(2, 2, figsize=(14,10))
-
-
-        ax[0][0].plot(r_perp, r_perp * self.w_p_data, "o-", color="red", lw=1, ms=2, label="mean data", zorder=100)
-        ax[0][1].plot(r_perp, r_perp * self.w_p_data, "o-", color="red", lw=1, ms=2, label="mean data", zorder=100)
-
-        ax[0][0].plot([], "--", lw=0.7, alpha=0.7, c='gray', label="emulator")
-        ax[0][1].plot([], "--", lw=0.7, alpha=0.7, c='gray', label="emulator")
-
-
-        errors   = np.zeros((initial_step.shape[0], len(r_perp)))
-        log_like = np.zeros(initial_step.shape[0])
-
-        ll_neg = []
-        ll_pos = []
-
-        for i, params in enumerate(initial_step):
-            wp_theory = self.get_wp_theory(params)
-            err = np.abs(wp_theory / self.w_p_data - 1)
-            errors[i] = err 
-            ll, delta = self.log_likelihood(params)
-            log_like[i] = ll
-            if ll < 0:
-                ax[0][0].plot(r_perp, r_perp * wp_theory, "--", lw=0.7, alpha=0.7)
-                ax[1][0].plot(*[i, ll], "o", ms=5, lw=0.7)#, label="log_like")
-            else:
-                ax[0][1].plot(r_perp, r_perp * wp_theory, "--", lw=0.7, alpha=0.7)
-                ax[1][1].plot(*[i, ll], "o", ms=5, lw=0.7)
-
-
-        ax[0][0].set_title(r"$\log \mathcal{L} < 0$")
-        ax[1][0].set_title(r"$\log \mathcal{L} < 0$")
-
-        ax[0][1].set_title(r"$\log \mathcal{L} > 0$")
-        ax[1][1].set_title(r"$\log \mathcal{L} > 0$")
-
-
-
-        ax[0][0].set_xscale("log")
-        ax[0][0].set_yscale("log")
-        ax[0][1].set_xscale("log")
-        ax[0][1].set_yscale("log")
-
-        ax[1][0].set_xscale("linear")
-        ax[1][0].set_yscale("linear")
-        ax[1][1].set_xscale("linear")
-        ax[1][1].set_yscale("linear")
-
-        ax[0][0].set_xlabel(r"$r_\perp \: [h^{-1} \mathrm{Mpc}]$", fontsize=10)
-        ax[0][1].set_xlabel(r"$r_\perp \: [h^{-1} \mathrm{Mpc}]$", fontsize=10)
-
-        ax[1][0].set_xlabel("Sample number")
-        ax[1][1].set_xlabel("Sample number")
-
-        ax[0][0].set_ylabel(r"$r_\perp w_p(r_\perp)$", fontsize=15)
-        ax[0][1].set_ylabel(r"$r_\perp w_p(r_\perp)$", fontsize=15)
-        ax[1][0].set_ylabel(r"$\log \mathcal{L}$")
-        ax[1][1].set_ylabel(r"$\log \mathcal{L}$")
-
-        ax[0][0].legend()
-        ax[0][1].legend()
-
-        # Increase spacing between top and bottom plots
-        plt.subplots_adjust(hspace=0.3)
-
-        plt.show()
-        # fig.savefig("figures/likelihood_tests/wp_L.png", dpi=200, bbox_inches="tight")
-        # fig.clf()
-
-
-        return 
 
         sampler = emcee.EnsembleSampler(
             self.nwalkers, 
@@ -296,88 +215,303 @@ class Likelihood:
             moves = moves,
         )
 
-        for ii, (pos, prob, state) in enumerate(sampler.sample(initial_step, iterations=max_n, progress=True)):
-            exit()
+        if check_convergence:
+            """
+            Compute autocorrelation time every check_every_n iterations and check for convergence
+            """
+            old_tau = np.inf
+            with h5py.File(outfile, "w") as f:
+                # Create resizable datasets to store the chain
+                dset_pos  = f.create_dataset("chain", (max_n, self.nwalkers, self.nparams), maxshape=(None, self.nwalkers, self.nparams))
+                dset_prob = f.create_dataset("lnprob", (max_n, self.nwalkers), maxshape=(None, self.nwalkers))
 
+                for ii, (pos, prob, state) in enumerate(sampler.sample(initial_step, iterations=max_n, progress=True)):
 
+                    dset_pos[ii] = pos
+                    dset_prob[ii] = prob
+
+                    if sampler.iteration % check_every_n:
+                        continue
+
+                    tau         = sampler.get_autocorr_time(tol=0)
+                    converged   = np.all(tau * 100 < sampler.iteration)
+                    converged  &= np.all(np.abs(old_tau - tau) / tau < 0.11)
+
+                    if converged:
+                        print(f"Chain converged after {sampler.iteration} iterations. Stopping.")
+                        break
+                    old_tau = tau
+                if not converged:
+                    print(f"Did not converge after {sampler.iteration}/{max_n} iterations")
+
+                tau = emcee.autocorr.integrated_time(dset_pos, c=1, tol=0, quiet=True)
+                f.create_dataset("tau", data=tau)
+        
+        else:
+            with h5py.File(outfile, "w") as f:
+                # Create resizable datasets to store the chain
+                dset_pos  = f.create_dataset("chain", (max_n, self.nwalkers, self.nparams), maxshape=(None, self.nwalkers, self.nparams))
+                dset_prob = f.create_dataset("lnprob", (max_n, self.nwalkers), maxshape=(None, self.nwalkers))
+
+                for ii, (pos, prob, state) in enumerate(sampler.sample(initial_step, iterations=max_n, progress=True)):
+
+                    dset_pos[ii] = pos
+                    dset_prob[ii] = prob
+
+                tau = emcee.autocorr.integrated_time(dset_pos, c=1, tol=0, quiet=True)
+                f.create_dataset("tau", data=tau)
+
+        print(f"Completed chain run for {outfile.name}.")
         return None 
  
-    def plot_delta_likelihood(
+
+    def continue_chain(
             self,
             filename:           str,
-            stddev_factor:      float,
-            max_n:              int     = int(1e5),
-            moves = emcee.moves.StretchMove()
+            check_convergence:  bool,
+            max_new_iterations: int  = int(1e5),
+            moves                    = emcee.moves.StretchMove()
+            ):
+        """
+        Continue chain from last iteration in file
+
+        Need to pass an argument to sampler to not check for independent walkers
+        """
+
+        outfile = Path(self.outpath / filename)
+        if not outfile.exists():
+            raise FileNotFoundError(f"File {outfile} not found. Run chain first.")
+        else:
+            print(f"Continuing chain from {outfile.name}, running {max_new_iterations} new steps...")
+        
+        sampler = emcee.EnsembleSampler(
+            self.nwalkers, 
+            self.nparams, 
+            self.log_prob,
+            moves = moves,
+        )
+        
+        if check_convergence:
+            with h5py.File(outfile, "r+") as restart_file:
+                dset_pos  = restart_file["chain"]
+                dset_prob = restart_file["lnprob"]
+
+                dset_walkers = dset_pos.shape[1]
+                assert dset_walkers == self.nwalkers, f"Number of walkers in file ({dset_walkers}) does not match number of walkers in class ({self.nwalkers})."
+
+                # Load tau from file if already computed, otherwise compute it
+                if "tau" in restart_file.keys():
+                    old_tau = restart_file["tau"][:]
+                else:
+                    old_tau = emcee.autocorr.integrated_time(dset_pos, c=1, tol=0, quiet=True)
+
+                # Save old tau in a new dataset
+                tau_index = 0
+                while f"tau_{tau_index}" in restart_file.keys():
+                    tau_index += 1
+                restart_file.create_dataset(f"tau_{tau_index}", data=old_tau)
+                
+                
+                # Use last position of chain as new initial step
+                initial_step = dset_pos[-1] 
+                old_max_n = dset_pos.shape[0]
+
+                # Expand data sets to store new data
+                dset_pos.resize(old_max_n + max_new_iterations, axis=0)
+                dset_prob.resize(old_max_n + max_new_iterations, axis=0)
+
+                for ii, (pos, prob, state) in enumerate(sampler.sample(initial_step, iterations=max_new_iterations, progress=True, skip_initial_state_check=True)):
+                    # Store new data 
+                    dset_pos[old_max_n + ii] = pos
+                    dset_prob[old_max_n + ii] = prob
+
+                    if sampler.iteration % 1000:
+                        # Check for convergence every 100 iterations
+                        continue
+
+                    # Compute tau, but include data from previous iterations and ommit trailing zeros
+                    tau = emcee.autocorr.integrated_time(dset_pos[:old_max_n+ii+1], tol=0, quiet=True)
+                    converged = np.all(tau * 100 < sampler.iteration)
+                    converged &= np.all(np.abs(old_tau - tau) / tau < 0.11)
+
+                    if converged:
+                        break
+
+                    old_tau = tau
+
+                # Resize datasets to remove potentially unused space
+                dset_pos.resize(old_max_n + sampler.iteration, axis=0)
+                dset_prob.resize(old_max_n + sampler.iteration, axis=0)
+
+                # Store the autocorrelation time
+                tau = emcee.autocorr.integrated_time(dset_pos, c=1, tol=0, quiet=True)
+                restart_file["tau"][:] = tau
+        
+        else:
+            with h5py.File(outfile, "r+") as restart_file:
+                dset_pos  = restart_file["chain"]
+                dset_prob = restart_file["lnprob"]
+
+                dset_walkers = dset_pos.shape[1]
+                assert dset_walkers == self.nwalkers, f"Number of walkers in file ({dset_walkers}) does not match number of walkers in class ({self.nwalkers})."
+
+                # Load tau from file if already computed, otherwise compute it
+                if "tau" in restart_file.keys():
+                    old_tau = restart_file["tau"][:]
+                else:
+                    old_tau = emcee.autocorr.integrated_time(dset_pos, c=1, tol=0, quiet=True)
+
+                # Save old tau in a new dataset
+                tau_index = 0
+                while f"tau_{tau_index}" in restart_file.keys():
+                    tau_index += 1
+                restart_file.create_dataset(f"tau_{tau_index}", data=old_tau)
+                
+                # Use last position of chain as new initial step
+                initial_step = dset_pos[-1] 
+                old_max_n = dset_pos.shape[0]
+
+                # Expand data sets to store new data
+                dset_pos.resize(old_max_n + max_new_iterations, axis=0)
+                dset_prob.resize(old_max_n + max_new_iterations, axis=0)
+
+                for ii, (pos, prob, state) in enumerate(sampler.sample(initial_step, iterations=max_new_iterations, progress=True, skip_initial_state_check=True)):
+                    # Store new data 
+                    dset_pos[old_max_n + ii] = pos
+                    dset_prob[old_max_n + ii] = prob
+
+                # Resize datasets to remove potentially unused space
+                dset_pos.resize(old_max_n + sampler.iteration, axis=0)
+                dset_prob.resize(old_max_n + sampler.iteration, axis=0)
+
+                # Store the autocorrelation time
+                tau = emcee.autocorr.integrated_time(dset_pos, c=1, tol=0, quiet=True)
+                restart_file["tau"][:] = tau
+                
+        return None 
+
+
+
+    def store_autocorr_time(
+            self,
+            chainfile: Path,
+        ):
+        """
+        Estimate the autocorrelation time of all walkers in the chain 
+        store it in the chainfile
+        """
+
+        file = h5py.File(chainfile, "r+")
+        chain = file["chain"][:]
+        tau = emcee.autocorr.integrated_time(chain, c=1, quiet=True)
+
+        file.create_dataset("tau", data=tau)
+        file.close()
+        return None 
+    
+    def run_chain_test(
+            self,
+            filename:           str = "test_iter.hdf5",
+            check_convergence:  bool = False,
+            moves                    = emcee.moves.StretchMove()
             ):
         
-
+        """
+        Run simple tests here, to avoid potential mistakes in the main run_chain function
+        """
         
+        outfile = Path(self.outpath / filename)
 
+        sampler = emcee.EnsembleSampler(
+            self.nwalkers, 
+            self.nparams, 
+            self.log_prob,
+            moves=moves,
+        )
         # Initial chain 
+        with h5py.File(outfile, "r") as restart_file:
+                max_new_iterations = 1000
+                dset_pos  = restart_file["chain"]
+                dset_prob = restart_file["lnprob"]
+
+                dset_walkers = dset_pos.shape[1]
+                assert dset_walkers == self.nwalkers, f"Number of walkers in file ({dset_walkers}) does not match number of walkers in class ({self.nwalkers})."
+
+                # Use last position of chain as new initial step
+                initial_step = dset_pos[-1] 
+                old_max_n = dset_pos.shape[0]
+
+                print("Beginning")
+                for ii, (pos, prob, state) in enumerate(sampler.sample(initial_step, iterations=max_new_iterations, progress=True, skip_initial_state_check=True)):
+                    # Store new data 
+                    # dset_pos[old_max_n + ii] = pos
+                    # dset_prob[old_max_n + ii] = prob
+                    print(f"{ii=}")
+                    print(f"{pos=}")
+                    input("Continue???")
+                    print()
+
         init_param_values = self.get_fiducial_params()
-        np.random.seed(32)
-        initial_step   = init_param_values + stddev_factor * np.random.normal(0, 1, size=(self.nwalkers, self.nparams))
+        ll = self.log_likelihood(init_param_values)
+        print(f"{ll=}")
+        exit()
+       
 
-        r_perp = self.r_perp 
-        # fig, ax = plt.subplots(ncols=2, figsize=(12,8))
-        fig, ax = plt.subplots(2, 2, figsize=(14,10))
+        if check_convergence:
+            """
+            Compute autocorrelation time every check_every_n iterations and check for convergence
+            """
+            old_tau = np.inf
+            with h5py.File(outfile, "w") as f:
+                # Create resizable datasets to store the chain
+                dset_pos  = f.create_dataset("chain", (max_n, self.nwalkers, self.nparams), maxshape=(None, self.nwalkers, self.nparams))
+                dset_prob = f.create_dataset("lnprob", (max_n, self.nwalkers), maxshape=(None, self.nwalkers))
 
-        errors   = np.zeros((initial_step.shape[0], len(r_perp)))
-        log_like = np.zeros(initial_step.shape[0])
+                for ii, (pos, prob, state) in enumerate(sampler.sample(initial_step, iterations=max_n, progress=True, skip_initial_state_check=True)):
 
-        for i, params in enumerate(initial_step):
-            wp_theory = self.get_wp_theory(params)
-            err = np.abs(wp_theory / self.w_p_data - 1)
-            errors[i] = err 
-            # log_like[i] = self.log_likelihood(params)
-            ll, delta = self.log_likelihood(params)
-            log_like[i] = ll
-            if ll < 0:
-                ax[0][0].plot(r_perp, delta, "o-", lw=0.5, alpha=0.7, ms=2)
-                ax[1][0].plot(*[i, ll], "o", ms=5, lw=0.7)#, label="log_like")
-            else:
-                ax[0][1].plot(r_perp, delta, "o-", lw=0.5, alpha=0.7, ms=2)
-                ax[1][1].plot(*[i, ll], "o", ms=5, lw=0.7)
+                    dset_pos[ii] = pos
+                    dset_prob[ii] = prob
 
+                    if sampler.iteration % check_every_n:
+                        continue
 
-        ax[0][0].set_title(r"$\log \mathcal{L} < 0$")
-        ax[1][0].set_title(r"$\log \mathcal{L} < 0$")
+                    tau         = sampler.get_autocorr_time(tol=0)
+                    converged   = np.all(tau * 100 < sampler.iteration)
+                    converged  &= np.all(np.abs(old_tau - tau) / tau < 0.11)
 
-        ax[0][1].set_title(r"$\log \mathcal{L} > 0$")
-        ax[1][1].set_title(r"$\log \mathcal{L} > 0$")
+                    if converged:
+                        print(f"Chain converged after {sampler.iteration} iterations. Stopping.")
+                        break
+                    old_tau = tau
 
+                if not converged:
+                    print("Yes")
+                else:
+                    print("No")
 
-
-        ax[0][0].set_xscale("log")
-        ax[0][1].set_xscale("log")
-
-
-        ax[0][0].set_xlabel(r"$r_\perp \: [h^{-1} \mathrm{Mpc}]$", fontsize=10)
-        ax[0][1].set_xlabel(r"$r_\perp \: [h^{-1} \mathrm{Mpc}]$", fontsize=10)
-
-        ax[1][0].set_xlabel("Sample number")
-        ax[1][1].set_xlabel("Sample number")
-
-        ax[0][0].set_ylabel(r"$\Delta = (w_p^\mathrm{emul} - \overline{w_p})$", fontsize=15) # \: [h^{-2} \mathrm{Mpc}^{2}]$", fontsize=10)
-        ax[0][1].set_ylabel(r"$\Delta = (w_p^\mathrm{emul} - \overline{w_p})$", fontsize=15) # \: [h^{-2} \mathrm{Mpc}^{2}]$", fontsize=10)
-
-        ax[1][0].set_ylabel(r"$\log \mathcal{L}$")
-        ax[1][1].set_ylabel(r"$\log \mathcal{L}$")
-
-        # ax[0][0].legend()
-        # ax[0][1].legend()
-        # ax[1][0].legend()
-
-        # Increase spacing between top and bottom plots
-        plt.subplots_adjust(hspace=0.3)
-
-        plt.show()
-        # fig.savefig("figures/likelihood_tests/delta_L.png", dpi=200, bbox_inches="tight")
-        # fig.clf()
+                print(f"{sampler.iteration=}")
+                print(f"{max_n=}")
+                return 
 
 
-        return 
+                tau = emcee.autocorr.integrated_time(dset_pos, c=1, tol=0, quiet=True)
+                f.create_dataset("tau", data=tau)
+        
+        else:
+            with h5py.File(outfile, "w") as f:
+                # Create resizable datasets to store the chain
+                dset_pos  = f.create_dataset("chain", (max_n, self.nwalkers, self.nparams), maxshape=(None, self.nwalkers, self.nparams))
+                dset_prob = f.create_dataset("lnprob", (max_n, self.nwalkers), maxshape=(None, self.nwalkers))
 
+                for ii, (pos, prob, state) in enumerate(sampler.sample(initial_step, iterations=max_n, progress=True)):
+
+                    dset_pos[ii] = pos
+                    dset_prob[ii] = prob
+
+                tau = emcee.autocorr.integrated_time(dset_pos, c=1, tol=0, quiet=True)
+                f.create_dataset("tau", data=tau)
+
+        return None 
 
 
 """
@@ -388,10 +522,7 @@ TODO:
 
 """
 
-L4 = Likelihood(walkers_per_param=4)
-L4.plot_delta_likelihood("test.hdf5", stddev_factor=1e-3, max_n=int(10))
-L4.plot_wp_likelihood("test.hdf5", stddev_factor=1e-3, max_n=int(10))
-
+# L4 = Likelihood(walkers_per_param=4)
 # L8 = Likelihood(walkers_per_param=8)
 # L12 = Likelihood(walkers_per_param=12)
 
