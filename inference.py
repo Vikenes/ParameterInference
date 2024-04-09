@@ -107,7 +107,8 @@ class Likelihood:
         Computed from the wp data loaded in "load_wp_data()"
         """
         cov_matrix        = np.load(self.data_path / "cov_wp_fiducial.npy")
-        cov_matrix_inv    = np.linalg.inv(cov_matrix)
+        cov_matrix_diag = np.diag(np.diag(cov_matrix))
+        cov_matrix_inv    = np.linalg.inv(cov_matrix_diag)
         return cov_matrix_inv
         
     def load_wp_data(self):
@@ -205,7 +206,7 @@ class Likelihood:
 
         # Initial chain 
         init_param_values = self.get_fiducial_params()
-        np.random.seed(32)
+        np.random.seed(4200)
         initial_step   = init_param_values + stddev_factor * np.random.normal(0, 1, size=(self.nwalkers, self.nparams))
 
         sampler = emcee.EnsembleSampler(
@@ -522,7 +523,8 @@ TODO:
 
 """
 
-# L4 = Likelihood(walkers_per_param=4)
+L4 = Likelihood(walkers_per_param=4)
+L4.run_chain("DEMove_4w.hdf5", check_convergence=False, stddev_factor=1e-3, max_n=int(1e5), moves=emcee.moves.DEMove())
 # L8 = Likelihood(walkers_per_param=8)
 # L12 = Likelihood(walkers_per_param=12)
 
