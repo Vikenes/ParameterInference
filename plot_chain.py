@@ -156,7 +156,6 @@ class Plot_MCMC:
         chainfile     = Path(self.chain_path / filename)
         if not chainfile.exists():
             raise FileNotFoundError(f"File {chainfile} not found. Run chain first.")
-
         fff = h5py.File(chainfile, "r")
         if not "tau" in fff.keys():
             # Store autocorrelation time in chainfile if not already stored
@@ -165,9 +164,6 @@ class Plot_MCMC:
             self.store_autocorr_time(chainfile)
             fff = h5py.File(chainfile, "r")
 
-
-        # prob  = fff["lnprob"][:] # (nsteps, nwalkers) 
-        # tau   = fff["tau_0"][:]    # (nparams,)
         tau   = fff["tau"][:]    # (nparams,)
         if burnin is not None and type(burnin) is int:
             burnin = burnin
@@ -176,16 +172,19 @@ class Plot_MCMC:
         if thin is not None and type(thin) is int:
             thin   = thin
         else:
-            thin   = int(0.5 * np.min(tau))
+            thin   = int(np.min(tau))
 
-        chain = fff["chain"][:]                     # (nsteps, nwalkers, nparams). Same as get_chain(discard=0, thin=1, flat=False)
-        n_steps = chain.shape[0]
-        if print_tau:
-            self.print_autocorr_time(filename, n_steps, tau)
-            return 
+        chain       = fff["chain"]   # Acces chain 
+        n_steps     = chain.shape[0] # Get number of steps 
      
-        samples = chain.reshape(-1, self.nparams)   # (nsteps * nwalkers, nparams)
-        samples = samples[burnin::thin, ...]        # ((nsteps-burnin)//thin * nwalkers, nparams)
+        if print_tau:
+            # Print autocorrelation time min and max
+            # and the number of steps per autocorrelation time
+            self.print_autocorr_time(filename, n_steps, tau)
+
+        # Reshape chain array to (nsteps * nwalkers, nparams)
+        # Discard burnin steps and thin by factor thin
+        samples = chain[:].reshape(-1, self.nparams)[burnin::thin, ...]   
 
         # Get indices where self.cosmo_param_names are found in self.emulator_param_names
         cosmo_indices           = [self.emulator_param_names.index(param) for param in self.cosmo_param_names]
@@ -303,11 +302,11 @@ L = Plot_MCMC()
 # L.plot_cosmo("test_fidu_std1e-3_4w_5e5.hdf5")
 # L.plot_cosmo("test_fidu_std1e-4_4w_5e5.hdf5")
 # L.plot_cosmo("test_fidu_std1e-3_6w_5e5.hdf5")
+L.plot_cosmo("DEMove_fidu_std1e-3_1e5.hdf5", print_tau=False)
 
-L.plot_cosmo("DEMove_fidu_std1e-3_1e5.hdf5", print_tau=True)
-L.plot_cosmo("DEMove_fidu_std1e-3_8w.hdf5", print_tau=True)
-L.plot_cosmo("DEMove_fidu_std1e-3_12w.hdf5", print_tau=True)
-L.plot_cosmo("DESnookerMove_fidu_std1e-3_8w.hdf5", print_tau=True)
+# L.plot_cosmo("DEMove_fidu_std1e-3_8w.hdf5", print_tau=True)
+# L.plot_cosmo("DEMove_fidu_std1e-3_12w.hdf5", print_tau=False, loop=True)
+# L.plot_cosmo("DESnookerMove_fidu_std1e-3_8w.hdf5", print_tau=True)
 
 # L.test_autocorr_time("converged_test_fidu_1e-3_std1_4w_5e5.hdf5")
 
