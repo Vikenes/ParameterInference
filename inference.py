@@ -42,6 +42,7 @@ class Likelihood:
         emulator_path       = "emulator_data/vary_r/emulators/compare_scaling",
         emulator_version    = 6,
         walkers_per_param   = 4,
+        diagonal_cov        = True,
     ):
         self.data_path              = Path(data_path)
         self.emulator_path          = Path(f"{emulator_path}/version_{emulator_version}")
@@ -52,7 +53,7 @@ class Likelihood:
          
 
         self.r_perp, self.w_p_data  = self.load_wp_data()
-        self.cov_matrix_inv         = self.load_covariance_data()
+        self.cov_matrix_inv         = self.load_covariance_data(diagonal_cov=diagonal_cov)
 
         self.emulator       = xi_emulator_class(emulator_path, emulator_version)
 
@@ -101,14 +102,19 @@ class Likelihood:
         # print(Fiducial_params)
         return Fiducial_params
 
-    def load_covariance_data(self):
+    def load_covariance_data(self, diagonal_cov=True):
         """
         Load covariance matrix and its inverse
         Computed from the wp data loaded in "load_wp_data()"
         """
-        cov_matrix        = np.load(self.data_path / "cov_wp_fiducial.npy")
-        cov_matrix_diag = np.diag(np.diag(cov_matrix))
-        cov_matrix_inv    = np.linalg.inv(cov_matrix_diag)
+        cov_matrix          = np.load(self.data_path / "cov_wp_fiducial.npy") # Load covariance matrix
+        if diagonal_cov:
+            # Set off-diagonal elements to zero
+            # Initially used since cov_matrix is extremely ill-conditioned
+            cov_matrix     = np.diag(np.diag(cov_matrix))  
+
+        cov_matrix_inv      = np.linalg.inv(cov_matrix)
+
         return cov_matrix_inv
         
     def load_wp_data(self):
@@ -517,16 +523,7 @@ class Likelihood:
 
 """
 TODO:
-
  - Implement method for keeping certain parameters fixed
- - Make som plots of wp_theory to ensure that it's reasonable. 
-
 """
 
 L4 = Likelihood(walkers_per_param=4)
-L4.run_chain("DEMove_4w.hdf5", check_convergence=False, stddev_factor=1e-3, max_n=int(1e5), moves=emcee.moves.DEMove())
-# L8 = Likelihood(walkers_per_param=8)
-# L12 = Likelihood(walkers_per_param=12)
-
-# L12.continue_chain("DEMove_fidu_std1e-3_12w.hdf5", check_convergence=False, max_new_iterations=int(2e5))
-
