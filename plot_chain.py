@@ -241,7 +241,7 @@ class Plot_MCMC:
         if burnin is not None and type(burnin) is int:
             burnin = burnin
         else:
-            burnin = int(1 * np.max(tau))
+            burnin = int(10 * np.max(tau))
         if thin is not None and type(thin) is int:
             thin   = thin
         else:
@@ -373,27 +373,5 @@ class Plot_MCMC:
 global show 
 show = True
 L = Plot_MCMC()
-# L.plot_cosmo("test_fidu_std1e-3_4w_5e5.hdf5")
-# L.plot_cosmo("test_fidu_std1e-4_4w_5e5.hdf5")
-# L.plot_cosmo("test_fidu_std1e-3_6w_5e5.hdf5")
-L.plot_cosmo_get_dist("test_iter2.hdf5")#, burnin=0, thin=1)
-
-# L.plot_cosmo("DEMove_fidu_std1e-3_8w.hdf5", print_tau=True)
-# L.plot_cosmo("DEMove_fidu_std1e-3_12w.hdf5", print_tau=False, loop=True)
-# L.plot_cosmo("DESnookerMove_fidu_std1e-3_8w.hdf5", print_tau=True)
-
-# L.test_autocorr_time("converged_test_fidu_1e-3_std1_4w_5e5.hdf5")
-
-# L.plot_cosmo("test_fidu_1e-3_std1.hdf5")
-
-# L.plot_cosmo("test_fidu_1e-3_std1.hdf5", burnin=0)#, figname="test_fidu_1e-3_std1_2.png")
-# L.plot_cosmo("test_fidu_1e-3_std1_6w_5e5.hdf5")
-# L.plot_cosmo("DEMove_fidu_std1e-3_1e5.hdf5", thin=200)
-# L.plot_cosmo("DEMove_fidu_std1e-3_1e5.hdf5", thin=200)
-# L.plot_cosmo("DESnookerMove_fidu_std1e-3_8w.hdf5")
-
-# L.plot_cosmo("converged_test_fidu_1e-3_std1_4w_5e5.hdf5")#, figname="test_fidu_1e-3_std1_4w_5e5.png")
-
-# L.plot_HOD("test_fidu_1e-3_std1.hdf5")
-# L.plot_HOD("converged_test_fidu_1e-3_std1_4w_5e5.hdf5")#, figname="test_fidu_1e-3_std1_4w_5e5.png")
-
+# L.plot_cosmo_get_dist("DEMove_4w.hdf5")
+L.plot_cosmo("DEMove_6w.hdf5", print_tau=True)
