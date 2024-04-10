@@ -52,13 +52,19 @@ class Likelihood:
         self.outpath                = Path(data_path / "chains" / emul_path_suffix)
         self.outpath.mkdir(parents=True, exist_ok=True)
          
+
         self.data_path              = Path(data_path)
         if use_MGGLAM:
             diagonal_cov = False
             self.data_path              = Path(data_path / "MGGLAM")
 
-        self.r_perp, self.w_p_data  = self.load_wp_data()
+        # Scale cov_matrix by 8 to match MGGLAM, before inverting if use_MGGLAM is True
+        # Set off-diagonal elements to zero if diagonal_cov is True. Only when MGGLAM is False
         self.cov_matrix_inv         = self.load_covariance_matrix(diagonal_cov=diagonal_cov, use_MGGLAM=use_MGGLAM)
+
+        # Use wp data from fiducial AbacusSummit simulation, NOT MGGLAM
+        self.r_perp, self.w_p_data  = self.load_wp_data(data_path=data_path)
+
 
         self.emulator       = xi_emulator_class(emulator_path, emulator_version)
 
@@ -124,12 +130,12 @@ class Likelihood:
         return np.linalg.inv(cov_matrix)
     
         
-    def load_wp_data(self):
+    def load_wp_data(self, data_path):
         """
         Load fiducial wp data
         computed from fiducial AbacusSummit simulation: c000_ph000-c000_ph024
         """
-        WP = h5py.File(self.data_path / "wp_from_sz_fiducial_ng_fixed.hdf5", "r")
+        WP = h5py.File(data_path / "wp_from_sz_fiducial_ng_fixed.hdf5", "r")
         r_perp = WP["rp_mean"][:]
         w_p_data = WP["wp_mean"][:]
         WP.close()
