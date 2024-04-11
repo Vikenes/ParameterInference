@@ -246,8 +246,6 @@ class Likelihood:
         else:
             print(f"Running chain, storing in {outfile}...")
 
-        exit()
-
         # Initial chain 
         init_param_values = self.get_fiducial_params()
         np.random.seed(4200)
