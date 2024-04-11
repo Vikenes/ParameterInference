@@ -46,31 +46,44 @@ class Likelihood:
         diagonal_cov        = True,
     ):
 
+        self.data_path              = Path(data_path)
+
         self.emulator_path          = Path(f"{emulator_path}/version_{emulator_version}")
+        self.emulator       = xi_emulator_class(emulator_path, emulator_version)
 
         emul_path_suffix            = "_".join(self.emulator_path.parts[-2:])
-        self.outpath                = Path(data_path / "chains" / emul_path_suffix)
+        self.outpath                = Path(self.data_path / "chains" / emul_path_suffix)
         self.outpath.mkdir(parents=True, exist_ok=True)
          
 
-        self.data_path              = Path(data_path)
         if use_MGGLAM:
             diagonal_cov = False
-            self.data_path              = Path(data_path / "MGGLAM")
+            wp_path  = Path(self.data_path / "MGGLAM")
+            xi_path  = Path(self.data_path / "MGGLAM")
+            cov_path = Path(self.data_path / "MGGLAM")
+        else:
+            wp_path  = Path(self.data_path)
+            xi_path  = Path(self.data_path)
+            cov_path = Path(self.data_path)
 
         # Scale cov_matrix by 8 to match MGGLAM, before inverting if use_MGGLAM is True
         # Set off-diagonal elements to zero if diagonal_cov is True. Only when MGGLAM is False
-        self.cov_matrix_inv         = self.load_covariance_matrix(diagonal_cov=diagonal_cov, use_MGGLAM=use_MGGLAM)
+        self.cov_matrix_inv         = self.load_covariance_matrix(
+            data_path=cov_path, 
+            diagonal_cov=diagonal_cov, 
+            use_MGGLAM=use_MGGLAM
+            )
 
         # Use wp data from fiducial AbacusSummit simulation, NOT MGGLAM
-        self.r_perp, self.w_p_data  = self.load_wp_data(data_path=data_path)
+        self.r_perp, self.w_p_data  = self.load_wp_data(
+            data_path=wp_path
+            )
 
-
-        self.emulator       = xi_emulator_class(emulator_path, emulator_version)
-
-        self.r              = self.get_r_from_fiducial_xi()
-        self.r_emul_input   = self.r.reshape(-1,1)
-        self.r_para         = np.linspace(0, int(np.max(self.r)), int(1000))
+        self.r_xi           = self.get_r_from_fiducial_xi(
+            data_path = xi_path
+        )
+        self.r_emul_input   = self.r_xi.reshape(-1,1)
+        self.r_para         = np.linspace(0, int(np.max(self.r_xi)), int(1000))
         self.r_from_rp_rpi  = np.sqrt(self.r_perp.reshape(-1,1)**2 + self.r_para.reshape(1,-1)**2)
 
         self.emulator_param_names   = self.emulator.config["data"]["feature_columns"][:-1]
@@ -113,12 +126,17 @@ class Likelihood:
         # print(Fiducial_params)
         return Fiducial_params
 
-    def load_covariance_matrix(self, diagonal_cov=True, use_MGGLAM=False):
+    def load_covariance_matrix(
+            self,
+            data_path, 
+            diagonal_cov=True, 
+            use_MGGLAM=False
+            ):
         """
         Load covariance matrix and its inverse
         Computed from the wp data loaded in "load_wp_data()"
         """
-        cov_matrix          = np.load(self.data_path / "cov_wp_fiducial.npy") # Load covariance matrix
+        cov_matrix          = np.load(data_path / "cov_wp_fiducial.npy") # Load covariance matrix
 
         if use_MGGLAM:
             cov_matrix /= 8.0
@@ -126,11 +144,13 @@ class Likelihood:
             # Set off-diagonal elements to zero
             # Initially used since cov_matrix is extremely ill-conditioned
             cov_matrix     = np.diag(np.diag(cov_matrix))  
-
         return np.linalg.inv(cov_matrix)
     
         
-    def load_wp_data(self, data_path):
+    def load_wp_data(
+            self, 
+            data_path
+            ):
         """
         Load fiducial wp data
         computed from fiducial AbacusSummit simulation: c000_ph000-c000_ph024
@@ -142,16 +162,19 @@ class Likelihood:
         return r_perp, w_p_data
 
 
-    def get_r_from_fiducial_xi(self):
+    def get_r_from_fiducial_xi(
+            self,
+            data_path
+            ):
         """
         Load fiducial xi data
         computed from fiducial AbacusSummit simulation: c000_ph000-c000_ph024
         """
-        XI = h5py.File(self.data_path / "tpcf_r_fiducial_ng_fixed.hdf5", "r")
-        r = XI["r_mean"][:]
+        XI = h5py.File(data_path / "tpcf_r_fiducial_ng_fixed.hdf5", "r")
+        r  = XI["r_mean"][:]
         XI.close()
         return r 
-
+    
     def get_parameter_priors(self):
 
         config          = yaml.safe_load(open(f"{self.data_path}/priors_config.yaml"))
@@ -184,7 +207,7 @@ class Likelihood:
         xi_theory = self.emulator(emul_input)
 
         xiR_func = IUS(
-            self.r, xi_theory
+            self.r_xi, xi_theory
         )
 
         w_p_theory = 2.0 * simps(
@@ -222,6 +245,8 @@ class Likelihood:
             raise FileExistsError(msg)
         else:
             print(f"Running chain, storing in {outfile}...")
+
+        exit()
 
         # Initial chain 
         init_param_values = self.get_fiducial_params()
@@ -538,11 +563,9 @@ class Likelihood:
 TODO:
  - Implement method for keeping certain parameters fixed
 
-
- TODO:
-    ADD NEW CORRELATION MATRIX AND SCALE IT!!
 """
 
 # L4 = Likelihood(walkers_per_param=4)
 L4_MGGLAM = Likelihood(walkers_per_param=4, use_MGGLAM=True)
+L4_MGGLAM.run_chain("MGGLAM_DE_4w_1e5.hdf5", check_convergence=False, stddev_factor=1e-3, max_n=int(1e5), moves=emcee.moves.DEMove())
 # L4_MGGLAM.run_chain("MGGLAM_4w.hdf5", check_convergence=False, stddev_factor=1e-3, max_n=int(5e4), moves=emcee.moves.DEMove())
