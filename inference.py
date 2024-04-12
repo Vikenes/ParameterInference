@@ -43,7 +43,6 @@ class Likelihood:
         emulator_version    = 6,
         walkers_per_param   = 4,
         use_MGGLAM          = False,
-        diagonal_cov        = True,
     ):
 
         self.data_path              = Path(data_path)
@@ -57,30 +56,14 @@ class Likelihood:
          
 
         if use_MGGLAM:
-            diagonal_cov = False
-            cov_path = Path(self.data_path / "MGGLAM")
+            self.cov_matrix_inv         = self.load_covariance_matrix_MGGLAM()
         else:
-            cov_path = Path(self.data_path)
-
-        wp_path  = Path(self.data_path)
-        xi_path  = Path(self.data_path)
-
-        # Scale cov_matrix by 8 to match MGGLAM, before inverting if use_MGGLAM is True
-        # Set off-diagonal elements to zero if diagonal_cov is True. Only when MGGLAM is False
-        self.cov_matrix_inv         = self.load_covariance_matrix(
-            data_path=cov_path, 
-            diagonal_cov=diagonal_cov, 
-            use_MGGLAM=use_MGGLAM
-            )
+            self.cov_matrix_inv         = self.load_covariance_matrix()
 
         # Use wp data from fiducial AbacusSummit simulation, NOT MGGLAM
-        self.r_perp, self.w_p_data  = self.load_wp_data(
-            data_path=wp_path
-            )
+        self.r_perp, self.w_p_data  = self.load_wp_data()
 
-        self.r_xi           = self.get_r_from_fiducial_xi(
-            data_path = xi_path
-        )
+        self.r_xi           = self.get_r_from_fiducial_xi()
         self.r_emul_input   = self.r_xi.reshape(-1,1)
         self.r_para         = np.linspace(0, int(np.max(self.r_xi)), int(1000))
         self.r_from_rp_rpi  = np.sqrt(self.r_perp.reshape(-1,1)**2 + self.r_para.reshape(1,-1)**2)
@@ -125,51 +108,41 @@ class Likelihood:
         # print(Fiducial_params)
         return Fiducial_params
 
-    def load_covariance_matrix(
-            self,
-            data_path, 
-            diagonal_cov=True, 
-            use_MGGLAM=False
-            ):
+    
+    def load_covariance_matrix(self):
         """
         Load covariance matrix and its inverse
         Computed from the wp data loaded in "load_wp_data()"
         """
-        cov_matrix          = np.load(data_path / "cov_wp_fiducial.npy") # Load covariance matrix
-
-        if use_MGGLAM:
-            cov_matrix /= 8.0
-        elif diagonal_cov:
-            # Set off-diagonal elements to zero
-            # Initially used since cov_matrix is extremely ill-conditioned
-            cov_matrix     = np.diag(np.diag(cov_matrix))  
+        cov_matrix          = np.load(self.data_path / "cov_wp_small.npy") / 64.0 # Load covariance matrix
         return np.linalg.inv(cov_matrix)
     
+    def load_covariance_matrix_MGGLAM(self):
+        """
+        Load covariance matrix and its inverse
+        Computed from the wp data loaded in "load_wp_data()"
+        """
+        cov_matrix          = np.load(self.data_path / "MGGLAM/cov_wp_fiducial.npy") / 8.0 # Load covariance matrix
+        return np.linalg.inv(cov_matrix)
         
-    def load_wp_data(
-            self, 
-            data_path
-            ):
+    def load_wp_data(self):
         """
         Load fiducial wp data
         computed from fiducial AbacusSummit simulation: c000_ph000-c000_ph024
         """
-        WP = h5py.File(data_path / "wp_from_sz_fiducial_ng_fixed.hdf5", "r")
+        WP = h5py.File(self.data_path / "wp_from_sz_fiducial_ng_fixed.hdf5", "r")
         r_perp = WP["rp_mean"][:]
         w_p_data = WP["wp_mean"][:]
         WP.close()
         return r_perp, w_p_data
 
 
-    def get_r_from_fiducial_xi(
-            self,
-            data_path
-            ):
+    def get_r_from_fiducial_xi(self):
         """
         Load fiducial xi data
         computed from fiducial AbacusSummit simulation: c000_ph000-c000_ph024
         """
-        XI = h5py.File(data_path / "tpcf_r_fiducial_ng_fixed.hdf5", "r")
+        XI = h5py.File(self.data_path / "tpcf_r_fiducial_ng_fixed.hdf5", "r")
         r  = XI["r_mean"][:]
         XI.close()
         return r 
@@ -559,10 +532,13 @@ class Likelihood:
 """
 TODO:
  - Implement method for keeping certain parameters fixed
-
 """
 
-# L4 = Likelihood(walkers_per_param=4)
-MGGLAM = Likelihood(walkers_per_param=8, use_MGGLAM=True)
-MGGLAM.run_chain("MGGLAM_DE_8w_1e5.hdf5", check_convergence=False, stddev_factor=1e-3, max_n=int(1e5), moves=emcee.moves.DEMove())
-# L4_MGGLAM.run_chain("MGGLAM_4w.hdf5", check_convergence=False, stddev_factor=1e-3, max_n=int(5e4), moves=emcee.moves.DEMove())
+# L4 = Likelihood(walkers_per_param=4, use_MGGLAM=False)
+# L4.run_chain("DE_4w_1e5.hdf5", check_convergence=False, stddev_factor=1e-3, max_n=int(1e5), moves=emcee.moves.DEMove())
+
+# L8 = Likelihood(walkers_per_param=8, use_MGGLAM=False)
+# L8.run_chain("DE_8w_1e5.hdf5", check_convergence=False, stddev_factor=1e-3, max_n=int(1e5), moves=emcee.moves.DEMove())
+
+# L10 = Likelihood(walkers_per_param=10, use_MGGLAM=False)
+# L10.run_chain("DE_10w_1e5.hdf5", check_convergence=False, stddev_factor=1e-3, max_n=int(1e5), moves=emcee.moves.DEMove())
