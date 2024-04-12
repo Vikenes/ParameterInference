@@ -172,7 +172,7 @@ class Plot_MCMC:
         if thin is not None and type(thin) is int:
             thin   = thin
         else:
-            thin   = int(np.min(tau))
+            thin   = int(5 * np.min(tau))
 
         chain       = fff["chain"]   # Acces chain 
         n_steps     = chain.shape[0] # Get number of steps 
@@ -197,7 +197,7 @@ class Plot_MCMC:
         fig = corner.corner(
             cosmo_samples, 
             labels=cosmo_labels,
-            truths=cosmo_fiducial_params,
+            # truths=cosmo_fiducial_params,
             range=cosmo_param_ranges,
             max_n_ticks=3,
             quiet=True,
@@ -326,7 +326,7 @@ class Plot_MCMC:
         if thin is not None and type(thin) is int:
             thin   = thin
         else:
-            thin   = int(0.5 * np.min(tau))
+            thin   = int(np.min(tau))
 
 
         # Get samples from chain array
@@ -348,7 +348,7 @@ class Plot_MCMC:
             HOD_samples, 
             labels=HOD_labels,
             truths=HOD_fiducial_params,
-            range=HOD_param_ranges,
+            # range=HOD_param_ranges,
             max_n_ticks=3,
             use_math_text=True,
             quiet=True,
@@ -374,4 +374,6 @@ global show
 show = True
 L = Plot_MCMC()
 # L.plot_cosmo_get_dist("DEMove_4w.hdf5")
-L.plot_cosmo("DEMove_6w.hdf5", print_tau=True)
+# L.plot_cosmo("MGGLAM_DE_4w_1e5.hdf5", print_tau=True)
+L.plot_cosmo("MGGLAM_DE_8w_1e5.hdf5", print_tau=True)
+

@@ -49,7 +49,7 @@ class Likelihood:
         self.data_path              = Path(data_path)
 
         self.emulator_path          = Path(f"{emulator_path}/version_{emulator_version}")
-        self.emulator       = xi_emulator_class(emulator_path, emulator_version)
+        self.emulator               = xi_emulator_class(emulator_path, emulator_version)
 
         emul_path_suffix            = "_".join(self.emulator_path.parts[-2:])
         self.outpath                = Path(self.data_path / "chains" / emul_path_suffix)
@@ -58,13 +58,12 @@ class Likelihood:
 
         if use_MGGLAM:
             diagonal_cov = False
-            wp_path  = Path(self.data_path / "MGGLAM")
-            xi_path  = Path(self.data_path / "MGGLAM")
             cov_path = Path(self.data_path / "MGGLAM")
         else:
-            wp_path  = Path(self.data_path)
-            xi_path  = Path(self.data_path)
             cov_path = Path(self.data_path)
+
+        wp_path  = Path(self.data_path)
+        xi_path  = Path(self.data_path)
 
         # Scale cov_matrix by 8 to match MGGLAM, before inverting if use_MGGLAM is True
         # Set off-diagonal elements to zero if diagonal_cov is True. Only when MGGLAM is False
@@ -564,6 +563,6 @@ TODO:
 """
 
 # L4 = Likelihood(walkers_per_param=4)
-L4_MGGLAM = Likelihood(walkers_per_param=4, use_MGGLAM=True)
-L4_MGGLAM.run_chain("MGGLAM_DE_4w_1e5.hdf5", check_convergence=False, stddev_factor=1e-3, max_n=int(1e5), moves=emcee.moves.DEMove())
+MGGLAM = Likelihood(walkers_per_param=8, use_MGGLAM=True)
+MGGLAM.run_chain("MGGLAM_DE_8w_1e5.hdf5", check_convergence=False, stddev_factor=1e-3, max_n=int(1e5), moves=emcee.moves.DEMove())
 # L4_MGGLAM.run_chain("MGGLAM_4w.hdf5", check_convergence=False, stddev_factor=1e-3, max_n=int(5e4), moves=emcee.moves.DEMove())
