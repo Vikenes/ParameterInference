@@ -168,7 +168,7 @@ class Plot_MCMC:
         if burnin is not None and type(burnin) is int:
             burnin = burnin
         else:
-            burnin = int(10 * np.max(tau))
+            burnin = int(100 * np.max(tau))
         if thin is not None and type(thin) is int:
             thin   = thin
         else:
@@ -197,7 +197,7 @@ class Plot_MCMC:
         fig = corner.corner(
             cosmo_samples, 
             labels=cosmo_labels,
-            # truths=cosmo_fiducial_params,
+            truths=cosmo_fiducial_params,
             range=cosmo_param_ranges,
             max_n_ticks=3,
             quiet=True,
@@ -213,13 +213,13 @@ class Plot_MCMC:
             figname = f"cosmo_{filename.split('.')[0]}.png"
 
         output_file = Path(f"figures/{figname}")
-        if output_file.exists():
+        if not output_file.exists():
             print(f"File {output_file} already exists. Adding _new to filename.")
             figname = f"{output_file.stem}_new{output_file.suffix}"
             output_file = Path(f"figures/{figname}")
-        
+        print(f"Saving {output_file} ...")
         fig.savefig(output_file, dpi=200)
-        fig.clf()
+        plt.close(fig)
 
 
     def plot_cosmo_get_dist(
@@ -245,13 +245,17 @@ class Plot_MCMC:
         if thin is not None and type(thin) is int:
             thin   = thin
         else:
-            thin   = int(np.min(tau))
+            thin   = int(1 * np.min(tau))
       
         chain       = fff["chain"]   # Acces chain 
+        # print(f"{chain.shape=}")
     
         # Reshape chain array to (nsteps * nwalkers, nparams)
         # Discard burnin steps and thin by factor thin
-        samples = chain[:].reshape(-1, self.nparams)[burnin::thin, ...]   
+        samples = chain[:].reshape(-1, self.nparams)[burnin::thin, ...]
+        # print(f"{samples.shape=}")   
+        # print()
+        # return 
 
         # Get indices where self.cosmo_param_names are found in self.emulator_param_names
         cosmo_indices           = [self.emulator_param_names.index(param) for param in self.cosmo_param_names]
@@ -284,16 +288,17 @@ class Plot_MCMC:
         
         if figname is None:
             # Set figname to cosmo_filename-stem.png
-            figname = f"cosmo_{filename.split('.')[0]}.png"
+            figname = f"cosmo_getdist_{filename.split('.')[0]}.png"
 
         output_file = Path(f"figures/{figname}")
         if output_file.exists():
             print(f"File {output_file} already exists. Adding _new to filename.")
             figname = f"{output_file.stem}_new{output_file.suffix}"
             output_file = Path(f"figures/{figname}")
-        
-        # fig.savefig(output_file, dpi=200)
-        # fig.clf()
+        print(f"Saving {output_file} ...")
+        # g.savefig(output_file, dpi=200)
+        g.export(figname, adir="figures")
+        # plt.close(g)
 
 
     def plot_HOD(
@@ -367,13 +372,16 @@ class Plot_MCMC:
             figname = f"{output_file.stem}_new{output_file.suffix}"
             output_file = Path(f"figures/{figname}")
         fig.savefig(output_file, dpi=200)
-        fig.clf()
+        plt.close(fig)
 
 
 global show 
-show = True
+show = False
 L = Plot_MCMC()
 # L.plot_cosmo_get_dist("DEMove_4w.hdf5")
 # L.plot_cosmo("MGGLAM_DE_4w_1e5.hdf5", print_tau=True)
-L.plot_cosmo("MGGLAM_DE_8w_1e5.hdf5", print_tau=True)
+# L.plot_cosmo_get_dist("DE_4w_1e5.hdf5", burnin=None, thin=None)
+L.plot_cosmo_get_dist("DE_8w_1e5.hdf5", burnin=None, thin=None)
+# L.plot_cosmo_get_dist("DE_10w_1e5.hdf5", burnin=None, thin=None)
+
 

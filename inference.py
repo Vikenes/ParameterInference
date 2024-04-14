@@ -534,7 +534,7 @@ TODO:
  - Implement method for keeping certain parameters fixed
 """
 
-# L4 = Likelihood(walkers_per_param=4, use_MGGLAM=False)
+L4 = Likelihood(walkers_per_param=4, use_MGGLAM=False)
 # L4.run_chain("DE_4w_1e5.hdf5", check_convergence=False, stddev_factor=1e-3, max_n=int(1e5), moves=emcee.moves.DEMove())
 
 # L8 = Likelihood(walkers_per_param=8, use_MGGLAM=False)
