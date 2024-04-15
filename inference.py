@@ -122,7 +122,6 @@ class Likelihood:
         WP.close()
         return r_perp, w_p_data
 
-
     def get_r_from_fiducial_xi(self):
         """
         Load fiducial xi data
@@ -134,19 +133,11 @@ class Likelihood:
         return r 
     
 
-
-
     def inrange(self, params):
         """
         Check if the parameters are within the prior range
         """
         return np.all((params >= self.param_priors[:,0]) & (params <= self.param_priors[:,1]))
-    
-    def log_likelihood(self, params):
-        
-        wp_theory   = self.get_wp_theory(params)
-        delta       = wp_theory - self.w_p_data 
-        return -0.5 * delta @ self.cov_matrix_inv @ delta 
     
     def get_wp_theory(self, params):
 
@@ -169,13 +160,19 @@ class Likelihood:
         )
         return w_p_theory
     
-
+    def log_likelihood(self, params):
+        
+        wp_theory   = self.get_wp_theory(params)
+        delta       = wp_theory - self.w_p_data 
+        return -0.5 * delta @ self.cov_matrix_inv @ delta 
+    
     def log_prob(self, params):
         if self.inrange(params):
             lnprob = self.log_likelihood(params)
         else:
             lnprob = -np.inf
         return lnprob
+
 
     def run_chain(
             self,
@@ -257,7 +254,6 @@ class Likelihood:
         print(f"Completed chain run for {outfile.name}.")
         return None 
  
-
     def continue_chain(
             self,
             filename:           str,
@@ -382,8 +378,6 @@ class Likelihood:
                 restart_file["tau"][:] = tau
                 
         return None 
-
-
 
     def store_autocorr_time(
             self,
