@@ -75,29 +75,6 @@ class Likelihood:
         self.nwalkers               = int(self.nparams * walkers_per_param)
         self.param_priors           = self.get_parameter_priors()
 
-    def get_param_names_latex(self):
-        HOD_param_labels = {
-            "log10Mmin"     : r"$\log M_\mathrm{min}$",
-            "log10M1"       : r"$\log M_1$",
-            "sigma_logM"    : r"$\sigma_{\log M}$",
-            "kappa"         : r"$\kappa$",
-            "alpha"         : r"$\alpha$",
-        }
-        cosmo_param_labels = {
-            "N_eff"     : r"$N_\mathrm{eff}$",
-            "alpha_s"   : r"$\mathrm{d} n_s / \mathrm{d} \ln k$",
-            "ns"        : r"$n_s$",
-            "sigma8"    : r"$\sigma_8$",
-            "w0"        : r"$w_0$",
-            "wa"        : r"$w_a$",
-            "wb"        : r"$\omega_b$",
-            "wc"        : r"$\omega_\mathrm{cdm}$",
-        }
-
-        # Combine the two dictionaries
-        param_names_latex_dict = {**HOD_param_labels, **cosmo_param_labels}
-        return param_names_latex_dict
-    
     def get_fiducial_params(self):
         FIDUCIAL_HOD_params     = pd.read_csv(f"{D13_PATH}/fiducial_data/HOD_parameters_fiducial_ng_fixed.csv")
         FIDUCIAL_cosmo_params   = pd.read_csv(f"{D13_PATH}/fiducial_data/cosmological_parameters.dat", sep=" ")
@@ -108,7 +85,16 @@ class Likelihood:
         # print(Fiducial_params)
         return Fiducial_params
 
-    
+    def get_parameter_priors(self):
+
+        config          = yaml.safe_load(open(f"{self.data_path}/priors_config.yaml"))
+        param_priors    = np.zeros((self.nparams, 2))
+
+        for i, param_name in enumerate(self.emulator_param_names):
+            param_priors[i] = config[param_name]
+
+        return param_priors
+        
     def load_covariance_matrix(self):
         """
         Load covariance matrix and its inverse
@@ -147,15 +133,7 @@ class Likelihood:
         XI.close()
         return r 
     
-    def get_parameter_priors(self):
 
-        config          = yaml.safe_load(open(f"{self.data_path}/priors_config.yaml"))
-        param_priors    = np.zeros((self.nparams, 2))
-
-        for i, param_name in enumerate(self.emulator_param_names):
-            param_priors[i] = config[param_name]
-
-        return param_priors
 
 
     def inrange(self, params):
