@@ -151,6 +151,7 @@ class Plot_MCMC:
             burnin:     int  = None,
             thin:       int  = None,
             print_tau:  bool = False,
+            make_copy:  bool = False,
         ):
 
         chainfile     = Path(self.chain_path / filename)
@@ -181,11 +182,11 @@ class Plot_MCMC:
             # Print autocorrelation time min and max
             # and the number of steps per autocorrelation time
             self.print_autocorr_time(filename, n_steps, tau)
-
         # Reshape chain array to (nsteps * nwalkers, nparams)
         # Discard burnin steps and thin by factor thin
-        samples = chain[:].reshape(-1, self.nparams)[burnin::thin, ...]   
+        samples = chain[:].reshape(-1, chain.shape[-1])[burnin::thin, ...]   
 
+    
         # Get indices where self.cosmo_param_names are found in self.emulator_param_names
         cosmo_indices           = [self.emulator_param_names.index(param) for param in self.cosmo_param_names]
         cosmo_samples           = samples[:, cosmo_indices] # MCMC samples for cosmological parameters
@@ -193,6 +194,9 @@ class Plot_MCMC:
         fiducial_params         = self.get_fiducial_params() # Fiducial parameter values
         cosmo_fiducial_params   = [fiducial_params[i] for i in cosmo_indices] # Fiducial parameter values for cosmological parameters
         cosmo_param_ranges      = [tuple(self.param_priors[i]) for i in cosmo_indices]
+        # print(f"{cosmo_samples=}")
+        # print(f"{cosmo_param_ranges=}")
+        # exit()
 
         fig = corner.corner(
             cosmo_samples, 
@@ -202,18 +206,20 @@ class Plot_MCMC:
             max_n_ticks=3,
             quiet=True,
             )
-        if show:
+        if figname is None:
+            # Set figname to cosmo_filename-stem.png
+            if "/" in filename:
+                filename = filename.split("/")[-1]
+            figname = f"cosmo_{filename.split('.')[0]}.png"
+
+        output_file = Path(f"figures/{figname}")
+        if output_file.exists() or show:
             # Add figure title
             fig.suptitle(f"{filename}, {n_steps} steps", fontsize=16)
             plt.show()
             return 
-        
-        if figname is None:
-            # Set figname to cosmo_filename-stem.png
-            figname = f"cosmo_{filename.split('.')[0]}.png"
 
-        output_file = Path(f"figures/{figname}")
-        if not output_file.exists():
+        if make_copy:
             print(f"File {output_file} already exists. Adding _new to filename.")
             figname = f"{output_file.stem}_new{output_file.suffix}"
             output_file = Path(f"figures/{figname}")
@@ -374,14 +380,31 @@ class Plot_MCMC:
         fig.savefig(output_file, dpi=200)
         plt.close(fig)
 
-
+    def print_info(self, filename):
+        chainfile = Path(self.chain_path / filename)
+        fff = h5py.File(chainfile, "r")
+        self.print_autocorr_time(filename, fff['chain'].shape[0], fff["tau"][:])
+        print(f"{fff.keys()=}")
+        print(f"{fff['chain'].shape=}")
+        print(f"{fff['lnprob'].shape=}")
+        print(f"{fff['tau'].shape=}")
+        print()
+        return None
 global show 
-show = False
+show = True
 L = Plot_MCMC()
 # L.plot_cosmo_get_dist("DEMove_4w.hdf5")
-# L.plot_cosmo("MGGLAM_DE_4w_1e5.hdf5", print_tau=True)
+# L.plot_cosmo("fixed_HOD_DE_4w_5e4.hdf5", print_tau=True)
 # L.plot_cosmo_get_dist("DE_4w_1e5.hdf5", burnin=None, thin=None)
-L.plot_cosmo_get_dist("DE_8w_1e5.hdf5", burnin=None, thin=None)
+# L.plot_cosmo_get_dist("DE_8w_1e5.hdf5", burnin=None, thin=None)
 # L.plot_cosmo_get_dist("DE_10w_1e5.hdf5", burnin=None, thin=None)
+# L.print_info("MGGLAM/MGGLAM_DE_4w_1e5.hdf5")
+# L.print_info("vary_cosmo_DE_4w_2e5.hdf5")
+# L.plot_cosmo("vary_cosmo_DE_4w_2e5.hdf5")
+
+# L.plot_cosmo("DE_10w_1e5.hdf5")
+
+
+
 
 
