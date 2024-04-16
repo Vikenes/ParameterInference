@@ -39,25 +39,30 @@ class Plot_MCMC:
         emul_path_suffix            = "_".join(self.emulator_path.parts[-2:])
         self.chain_path             = Path(self.data_path / "chains" / emul_path_suffix)
         
-        # Load parameter names, labels, priors, and fiducial values from emulator config 
-        emulator_config             = self.load_config(self.emulator_path)
-        self.emulator_param_names   = emulator_config["data"]["feature_columns"][:-1]
+        # Load parameter names, labels, priors, and fiducial values from emulator config
+        # Ensures correct order of parameters when predicting 
+        self.emulator_param_names   = self.load_emulator_param_names(self.emulator_path)
+        self.nparams                = len(self.emulator_param_names)
+
         self.HOD_param_names        = ["log10Mmin", "log10M1", "sigma_logM", "kappa", "alpha"]
         self.cosmo_param_names      = ["N_eff", "alpha_s", "ns", "sigma8", "w0", "wa", "wb", "wc"]
-        self.nparams                = len(self.emulator_param_names)
         self.param_priors           = self.get_parameter_priors()
-        self.param_labels_latex     = self.get_param_names_latex()
+        
+        self.load_plot_quantities()        
 
-    def load_config(self, path):
+
+
+
+    def load_emulator_param_names(self, path):
         with open(path / "config.yaml", "r") as fp:
             config = yaml.safe_load(fp)
-        return config
+        return config["data"]["feature_columns"][:-1]
 
     def get_param_names_latex(self):
         HOD_param_labels = {
-            "log10Mmin"     : r"$\log M_\mathrm{min}$",
-            "log10M1"       : r"$\log M_1$",
-            "sigma_logM"    : r"$\sigma_{\log M}$",
+            "log10Mmin"     : r"$\log{M_\mathrm{min}}$",
+            "log10M1"       : r"$\log{M_1}$",
+            "sigma_logM"    : r"$\sigma_{\log{M}}$",
             "kappa"         : r"$\kappa$",
             "alpha"         : r"$\alpha$",
         }
@@ -95,29 +100,45 @@ class Plot_MCMC:
 
         return param_priors
     
-    def print_autocorr_time(
-            self,
-            filename: str,
-            steps: int,
-            tau: np.ndarray,
-        ):
-        tau_min = np.min(tau)
-        tau_max = np.max(tau)
 
-        print(f"{filename} | {steps=}")
-        print(f"{tau_min =:10.2f} | {steps/tau_min =:4.2f}")
-        print(f"{tau_max =:10.2f} | {steps/tau_max =:4.2f}")
-        print()
-        return None
-    
+    def load_plot_quantities(self):
+        param_labels_latex          = self.get_param_names_latex()
+        fiducial_params             = self.get_fiducial_params() # Fiducial parameter values
+
+        # Indices where cosmological parameters are found in emulator_param_names
+        self.cosmo_indices          = [self.emulator_param_names.index(param) for param in self.cosmo_param_names]
+        self.cosmo_labels           = [param_labels_latex[param] for param in self.cosmo_param_names] # Latex labels for cosmological parameters
+        cosmo_fiducial_params       = [fiducial_params[i] for i in self.cosmo_indices] # Fiducial parameter values for cosmological parameters
+        self.fiducial_params_cosmo  = {label: cosmo_fiducial_params[i] for i, label in enumerate(self.cosmo_labels)} # Fiducial parameter values for cosmological parameters
+        cosmo_param_ranges          = [tuple(self.param_priors[i]) for i in self.cosmo_indices]
+        self.prior_ranges_cosmo     = {label: cosmo_param_ranges[i] for i, label in enumerate(self.cosmo_labels)}
+
+
+
+        # Indices where HOD parameters are found in emulator_param_names
+        self.HOD_indices            = [self.emulator_param_names.index(param) for param in self.HOD_param_names]
+        self.HOD_labels             = [param_labels_latex[param] for param in self.HOD_param_names] # Latex labels for HOD parameters
+        HOD_fiducial_params         = [fiducial_params[i] for i in self.HOD_indices] # Fiducial parameter values for HOD parameters
+        self.fiducial_params_HOD    = {label: HOD_fiducial_params[i] for i, label in enumerate(self.HOD_labels)} # Fiducial parameter values for HOD parameters
+        HOD_param_ranges            = [tuple(self.param_priors[i]) for i in self.HOD_indices]
+        self.prior_ranges_HOD       = {label: HOD_param_ranges[i] for i, label in enumerate(self.HOD_labels)}
+
+
+
     def print_info(self, filename):
         chainfile = Path(self.chain_path / filename)
         fff = h5py.File(chainfile, "r")
-        self.print_autocorr_time(filename, fff['chain'].shape[0], fff["tau"][:])
-        print(f"{fff.keys()=}")
-        print(f"{fff['chain'].shape=}")
-        print(f"{fff['lnprob'].shape=}")
-        print(f"{fff['tau'].shape=}")
+        tau = fff["tau"][:]
+        steps = fff['chain'].shape[0]
+
+        tau_min = np.min(tau)
+        tau_max = np.max(tau)
+
+        print(f"# {filename} #")
+        print(f"  - {tau_min =:10.2f} | {steps/tau_min =:4.2f}")
+        print(f"  - {tau_max =:10.2f} | {steps/tau_max =:4.2f}")
+        print(f"  - Chain shape:  {fff['chain'].shape}")
+        print(f"  - Total chains: {fff['chain'].shape[0] * fff['chain'].shape[1]:.2e}")
         print()
         return None
     
@@ -148,6 +169,8 @@ class Plot_MCMC:
         fff.close()
         return samples
 
+    
+    
     def plot_cosmo(
             self,
             filename:       str,
@@ -156,108 +179,35 @@ class Plot_MCMC:
             thin:           int  = None,
             burnin_factor:  float = 10,
             thin_factor:    float = 5,
-            make_copy:  bool = False,
         ):
-
         chainfile     = Path(self.chain_path / filename)
         if not chainfile.exists():
             raise FileNotFoundError(f"File {chainfile} not found. Run chain first.")
-
-        with h5py.File(chainfile, "r") as fff:
-            # Get number of steps in chain
-            n_steps     = fff["chain"].shape[0] # Get number of steps 
-
-        samples = self.load_samples(chainfile, burnin=burnin, thin=thin, burnin_factor=burnin_factor, thin_factor=thin_factor)
-
-    
-        # Get indices where self.cosmo_param_names are found in self.emulator_param_names
-        cosmo_indices           = [self.emulator_param_names.index(param) for param in self.cosmo_param_names]
-        cosmo_samples           = samples[:, cosmo_indices] # MCMC samples for cosmological parameters
-        cosmo_labels            = [self.param_labels_latex[param] for param in self.cosmo_param_names] # Latex labels for cosmological parameters
-        fiducial_params         = self.get_fiducial_params() # Fiducial parameter values
-        cosmo_fiducial_params   = [fiducial_params[i] for i in cosmo_indices] # Fiducial parameter values for cosmological parameters
-        cosmo_param_ranges      = [tuple(self.param_priors[i]) for i in cosmo_indices]
-
-        fig = corner.corner(
-            cosmo_samples, 
-            labels=cosmo_labels,
-            truths=cosmo_fiducial_params,
-            range=cosmo_param_ranges,
-            max_n_ticks=3,
-            quiet=True,
-            )
-        if figname is None:
-            # Set figname to cosmo_filename-stem.png
-            if "/" in filename:
-                filename = filename.split("/")[-1]
-            figname = f"cosmo_{filename.split('.')[0]}.png"
-
-        output_file = Path(f"figures/{figname}")
-        if output_file.exists() or show:
-            # Add figure title
-            fig.suptitle(f"{filename}, {n_steps} steps", fontsize=16)
-            plt.show()
-            return 
-        
-        print(f"Saving {output_file} ...")
-        fig.savefig(output_file, dpi=200)
-        plt.close(fig)
-
-
-    def plot_cosmo_get_dist(
-            self,
-            filename:       str,
-            figname:        str  = None,
-            burnin:         int  = None,
-            thin:           int  = None,
-            burnin_factor:  float = 10,
-            thin_factor:    float = 5,
-        ):
-        from getdist import plots, MCSamples
-
-        chainfile     = Path(self.chain_path / filename)
-        if not chainfile.exists():
-            raise FileNotFoundError(f"File {chainfile} not found. Run chain first.")
-
-        with h5py.File(chainfile, "r") as fff:
-            # Get number of steps in chain
-            n_steps     = fff["chain"].shape[0] # Get number of steps 
 
         samples = self.load_samples(
             chainfile, 
-            burnin=burnin, 
-            thin=thin, 
-            burnin_factor=burnin_factor, 
-            thin_factor=thin_factor
+            burnin          = burnin, 
+            thin            = thin, 
+            burnin_factor   = burnin_factor, 
+            thin_factor     = thin_factor
             )
 
-
-        # Get indices where self.cosmo_param_names are found in self.emulator_param_names
-        cosmo_indices           = [self.emulator_param_names.index(param) for param in self.cosmo_param_names]
-        cosmo_samples           = samples[:, cosmo_indices] # MCMC samples for cosmological parameters
-        cosmo_labels            = [self.param_labels_latex[param] for param in self.cosmo_param_names] # Latex labels for cosmological parameters
-        fiducial_params         = self.get_fiducial_params() # Fiducial parameter values
-        cosmo_fiducial_params   = [fiducial_params[i] for i in cosmo_indices] # Fiducial parameter values for cosmological parameters
-        cosmo_param_ranges      = [tuple(self.param_priors[i]) for i in cosmo_indices]
-        fiducial_params_dict    = {label: cosmo_fiducial_params[i] for i, label in enumerate(cosmo_labels)}
-        param_limits            = {label: cosmo_param_ranges[i] for i, label in enumerate(cosmo_labels)}
-        # plot_prior_ranges       = self.get_plot_priors(cosmo_param_ranges)
-        # param_limits            = {label: plot_prior_ranges[i] for i, label in enumerate(cosmo_labels)}
-
-        cosmo_samples = MCSamples(samples=cosmo_samples, names=cosmo_labels, labels=cosmo_labels)
+        cosmo_samples = MCSamples(
+            samples = samples[:, self.cosmo_indices], 
+            names   = self.cosmo_labels, 
+            labels  = self.cosmo_labels
+            )
         g = plots.get_subplot_plotter()
 
         g.triangle_plot(
             cosmo_samples, 
-            filled=True,
-            markers=fiducial_params_dict,
+            filled  = True,
+            markers = self.fiducial_params_cosmo,
             )
 
         if show:
             # Add figure title
-            # fig.suptitle(f"{filename}, {n_steps} steps", fontsize=16)
-            # Make axis equal
-            # plt.axis("equal")
+            # plt.suptitle(f"{filename}, {n_steps} steps", fontsize=16)
             plt.show()
             return 
         
@@ -271,11 +221,62 @@ class Plot_MCMC:
             figname = f"{output_file.stem}_new{output_file.suffix}"
             output_file = Path(f"figures/{figname}")
         print(f"Saving {output_file} ...")
-        # g.savefig(output_file, dpi=200)
         g.export(figname, adir="figures")
-        # plt.close(g)
 
-    def plot_cosmo_get_dist_double(
+    def plot_HOD(
+            self,
+            filename:       str,
+            figname:        str  = None,
+            burnin:         int  = None,
+            thin:           int  = None,
+            burnin_factor:  float = 10,
+            thin_factor:    float = 5,
+        ):
+        chainfile     = Path(self.chain_path / filename)
+        if not chainfile.exists():
+            raise FileNotFoundError(f"File {chainfile} not found. Run chain first.")
+
+        samples = self.load_samples(
+            chainfile, 
+            burnin          = burnin, 
+            thin            = thin, 
+            burnin_factor   = burnin_factor, 
+            thin_factor     = thin_factor
+            )
+
+        HOD_samples = MCSamples(
+            samples = samples[:, self.HOD_indices], 
+            names   = self.HOD_labels, 
+            labels  = self.HOD_labels
+            )
+        g = plots.get_subplot_plotter()
+
+        g.triangle_plot(
+            HOD_samples, 
+            filled  = True,
+            markers = self.fiducial_params_HOD,
+            )
+
+        if show:
+            # Add figure title
+            # plt.suptitle(f"{filename}, {n_steps} steps", fontsize=16)
+            plt.show()
+            return 
+        
+        if figname is None:
+            # Set figname to cosmo_filename-stem.png
+            figname = f"HOD_getdist_{filename.split('.')[0]}.png"
+
+        output_file = Path(f"figures/{figname}")
+        if output_file.exists():
+            print(f"File {output_file} already exists. Adding _new to filename.")
+            figname = f"{output_file.stem}_new{output_file.suffix}"
+            output_file = Path(f"figures/{figname}")
+        print(f"Saving {output_file} ...")
+        g.export(figname, adir="figures")
+
+
+    def plot_cosmo_double(
             self,
             filename1:      str,
             filename2:      str,
@@ -295,48 +296,44 @@ class Plot_MCMC:
 
         samples1 = self.load_samples(
             chainfile1, 
-            burnin=burnin, 
-            thin=thin, 
-            burnin_factor=burnin_factor, 
-            thin_factor=thin_factor
+            burnin          = burnin, 
+            thin            = thin, 
+            burnin_factor   = burnin_factor, 
+            thin_factor     = thin_factor
             )
         samples2 = self.load_samples(
             chainfile2, 
-            burnin=burnin, 
-            thin=thin, 
-            burnin_factor=burnin_factor, 
-            thin_factor=thin_factor
+            burnin          = burnin, 
+            thin            = thin, 
+            burnin_factor   = burnin_factor, 
+            thin_factor     = thin_factor
             )
 
-        # Get indices where self.cosmo_param_names are found in self.emulator_param_names
-        cosmo_indices           = [self.emulator_param_names.index(param) for param in self.cosmo_param_names]
-        cosmo_labels            = [self.param_labels_latex[param] for param in self.cosmo_param_names] # Latex labels for cosmological parameters
-        fiducial_params         = self.get_fiducial_params() # Fiducial parameter values
-        cosmo_fiducial_params   = [fiducial_params[i] for i in cosmo_indices] # Fiducial parameter values for cosmological parameters
-        fiducial_params_dict    = {label: cosmo_fiducial_params[i] for i, label in enumerate(cosmo_labels)}
         
-        cosmo_samples1          = samples1[:, cosmo_indices] # MCMC samples for cosmological parameters
-        cosmo_samples2          = samples2[:, cosmo_indices] # MCMC samples for cosmological parameters
-
-        cosmo_samples1 = MCSamples(samples=cosmo_samples1, names=cosmo_labels, labels=cosmo_labels, label=r"Vary $\mathcal{C}+\mathcal{G}$")
-        cosmo_samples2 = MCSamples(samples=cosmo_samples2, names=cosmo_labels, labels=cosmo_labels, label=r"Vary $\mathcal{C}$")
+        cosmo_samples1 = MCSamples(
+            samples = samples1[:, self.cosmo_indices], 
+            names   = self.cosmo_labels, 
+            labels  = self.cosmo_labels, 
+            label   = r"Varying $\mathcal{C}+\mathcal{G}$")
+        cosmo_samples2 = MCSamples(
+            samples = samples2[:, self.cosmo_indices], 
+            names   = self.cosmo_labels, 
+            labels  = self.cosmo_labels, 
+            label   = r"Varying $\mathcal{C}$")
 
         g = plots.get_subplot_plotter()
 
         g.triangle_plot(
             [cosmo_samples1, cosmo_samples2], 
-            filled=True,
-            markers=fiducial_params_dict,
-            contour_colors=["blue", "red"],
-            contour_args=[{"alpha": 1}, {"alpha": 0.75}],
-            legend_loc="upper right",
+            filled          = True,
+            markers         = self.fiducial_params_cosmo,
+            contour_colors  = ["blue", "red"],
+            contour_args    = [{"alpha": 1}, {"alpha": 0.75}],
+            legend_loc      = "upper right",
             )
 
         if show:
             # Add figure title
-            # fig.suptitle(f"{filename}, {n_steps} steps", fontsize=16)
-            # Make axis equal
-            # plt.axis("equal")
             # plt.suptitle("Testing title")
             plt.show()
             return 
@@ -353,99 +350,93 @@ class Plot_MCMC:
         print(f"Saving {output_file} ...")
         g.export(figname, adir="figures")
 
-    def plot_HOD(
+    def plot_HOD_double(
             self,
-            filename:       str,
-            figname:        str = None,
-            burnin:         int = None,
-            thin:           int = None,
+            filename1:      str,
+            filename2:      str,
+            figname:        str  = None,
+            burnin:         int  = None,
+            thin:           int  = None,
             burnin_factor:  float = 10,
             thin_factor:    float = 5,
         ):
 
-        chainfile     = Path(self.chain_path / filename)
-        if not chainfile.exists():
-            raise FileNotFoundError(f"File {chainfile} not found. Run chain first.")
+        chainfile1     = Path(self.chain_path / filename1)
+        chainfile2     = Path(self.chain_path / filename2)
+        if not chainfile1.exists():
+            raise FileNotFoundError(f"File1 {chainfile1} not found. Run chain first.")
+        if not chainfile2.exists():
+            raise FileNotFoundError(f"File2 {chainfile2} not found. Run chain first.")
 
-        with h5py.File(chainfile, "r") as fff:
-            # Get number of steps in chain
-            n_steps     = fff["chain"].shape[0] # Get number of steps 
-
-        samples = self.load_samples(chainfile, burnin=burnin, thin=thin, burnin_factor=burnin_factor, thin_factor=thin_factor)
-
-
-        # Get indices where self.HOD_param_names are found in self.emulator_param_names
-        HOD_indices         = [self.emulator_param_names.index(param) for param in self.HOD_param_names]
-        HOD_samples         = samples[:, HOD_indices]
-        HOD_labels          = [self.param_labels_latex[param] for param in self.HOD_param_names]
-        fiducial_params     = self.get_fiducial_params()
-        HOD_fiducial_params = [fiducial_params[i] for i in HOD_indices]
-        HOD_param_ranges    = [tuple(self.param_priors[i]) for i in HOD_indices]
-
-        fig = corner.corner(
-            HOD_samples, 
-            labels=HOD_labels,
-            truths=HOD_fiducial_params,
-            # range=HOD_param_ranges,
-            max_n_ticks=3,
-            use_math_text=True,
-            quiet=True,
+        samples1 = self.load_samples(
+            chainfile1, 
+            burnin          = burnin, 
+            thin            = thin, 
+            burnin_factor   = burnin_factor, 
+            thin_factor     = thin_factor
             )
-        
-        if show:
-            plt.show()
-            return
-        if figname is None:
-            # Set figname to HOD_filename-stem.png.
-            if "/" in filename:
-                filename = filename.split("/")[-1]
-            figname = f"HOD_{filename.split('.')[0]}.png"
+        samples2 = self.load_samples(
+            chainfile2, 
+            burnin          = burnin, 
+            thin            = thin, 
+            burnin_factor   = burnin_factor, 
+            thin_factor     = thin_factor
+            )
+        if samples1.shape[1] == len(self.HOD_indices):
+            HOD_indices1 = [HOD_idx - len(self.cosmo_indices) for HOD_idx in self.HOD_indices]
+        else:
+            HOD_indices1 = self.HOD_indices
 
-        output_file = Path(f"figures/{figname}")
-        if output_file.exists() or show:
+        if samples2.shape[1] == len(self.HOD_indices):
+            HOD_indices2 = [HOD_idx - len(self.cosmo_indices) for HOD_idx in self.HOD_indices]
+        else:
+            HOD_indices2 = self.HOD_indices
+
+        
+        HOD_samples1 = MCSamples(
+            samples = samples1[:, HOD_indices1], 
+            names   = self.HOD_labels, 
+            labels  = self.HOD_labels, 
+            label   = r"Varying $\mathcal{C}+\mathcal{G}$")
+        HOD_samples2 = MCSamples(
+            samples = samples2[:, HOD_indices2], 
+            names   = self.HOD_labels, 
+            labels  = self.HOD_labels, 
+            label   = r"Varying $\mathcal{G}$")
+
+        g = plots.get_subplot_plotter()
+
+        g.triangle_plot(
+            [HOD_samples1, HOD_samples2], 
+            filled          = True,
+            markers         = self.fiducial_params_HOD,
+            contour_colors  = ["blue", "red"],
+            contour_args    = [{"alpha": 1}, {"alpha": 0.75}],
+            legend_loc      = "upper right",
+            )
+
+        if show:
             # Add figure title
-            fig.suptitle(f"{filename}, {n_steps} steps", fontsize=16)
+            # plt.suptitle("Testing title")
             plt.show()
             return 
-
         
-        print(f"Saving {output_file} ...")
-        fig.savefig(output_file, dpi=200)
-        plt.close(fig)
+        if figname is None:
+            # Set figname to HOD_filename-stem.png
+            figname = f"HOD_compare-{filename1.split('.')[0]}-{filename2.split('.')[0]}.png"
 
-    
+        output_file = Path(f"figures/{figname}")
+        if output_file.exists():
+            input(f"  ! File {output_file} already exists. Press enter to overwrite ...")
+            figname = f"{output_file.stem}_new{output_file.suffix}"
+            output_file = Path(f"figures/{figname}")
+        print(f"Saving {output_file} ...")
+        g.export(figname, adir="figures")
 
 
 global show 
 show = False
 L = Plot_MCMC()
-# L.plot_cosmo_get_dist("DE_4w_1e5.hdf5")
-# L.
-# L.plot_cosmo_get_dist_double(filename1="DE_4w_2e5.hdf5", filename2="vary_cosmo_DE_4w_2e5.hdf5", thin_factor=10)
-# L.plot_cosmo_get_dist_double(filename1="DE_4w_1e5.hdf5", filename2="DE_4w_6e5.hdf5", thin_factor=10)
-# L.plot_cosmo_get_dist_double(filename1="DE_8w_1e5.hdf5", filename2="DE_8w_2e5.hdf5", thin_factor=10)
-L.plot_cosmo_get_dist_double(filename1="DE_10w_2e5.hdf5", filename2="vary_cosmo_DE_4w_2e5.hdf5", thin_factor=10)
-
-# L.plot_cosmo_get_dist_double(filename1="DE_4w_2e5.hdf5", filename2="vary_cosmo_DE_4w_2e5.hdf5", thin_factor=10)
-# L.plot_cosmo_get_dist_double(filename1="DE_4w_2e5.hdf5", filename2="vary_cosmo_DE_4w_2e5.hdf5", thin_factor=10)
-
-
-
-# L.plot_cosmo("DE_4w_1e5_first.hdf5")
-
-
-# L.plot_cosmo("fixed_HOD_DE_4w_5e4.hdf5", print_tau=True)
-# L.plot_cosmo_get_dist("DE_4w_1e5.hdf5", burnin=None, thin=None)
-# L.plot_cosmo_get_dist("DE_8w_1e5.hdf5", burnin=None, thin=None)
-# L.plot_cosmo_get_dist("DE_10w_1e5.hdf5", burnin=None, thin=None)
-# L.print_info("MGGLAM/MGGLAM_DE_4w_1e5.hdf5")
-# L.print_info("vary_cosmo_DE_4w_2e5.hdf5")
-# L.plot_cosmo("vary_cosmo_DE_4w_2e5.hdf5")
-
-# L.plot_cosmo("DE_10w_1e5.hdf5")
-
-
-
-
-
+L.plot_cosmo_double(filename1="DE_10w_2e5.hdf5", filename2="vary_cosmo_DE_4w_2e5.hdf5", thin_factor=10)
+L.plot_HOD_double(filename1="DE_10w_2e5.hdf5", filename2="vary_HOD_DE_4w_2e5.hdf5", thin_factor=10)
 
