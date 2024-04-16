@@ -94,12 +94,13 @@ class Plot_MCMC:
 
         return param_priors
     
-    def print_autocorr_time(
-            self,
-            filename: str,
-            steps: int,
-            tau: np.ndarray,
-        ):
+    
+    def print_info(self, filename):
+        chainfile = Path(self.chain_path / filename)
+        fff = h5py.File(chainfile, "r")
+        tau = fff["tau"][:]
+        steps = fff['chain'].shape[0]
+
         tau_min = np.min(tau)
         tau_max = np.max(tau)
 
@@ -107,12 +108,6 @@ class Plot_MCMC:
         print(f"{tau_min =:10.2f} | {steps/tau_min =:4.2f}")
         print(f"{tau_max =:10.2f} | {steps/tau_max =:4.2f}")
         print()
-        return None
-    
-    def print_info(self, filename):
-        chainfile = Path(self.chain_path / filename)
-        fff = h5py.File(chainfile, "r")
-        self.print_autocorr_time(filename, fff['chain'].shape[0], fff["tau"][:])
         print(f"{fff.keys()=}")
         print(f"{fff['chain'].shape=}")
         print(f"{fff['lnprob'].shape=}")
