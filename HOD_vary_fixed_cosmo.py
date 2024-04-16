@@ -71,28 +71,28 @@ class Likelihood:
         self.emulator_param_names   = self.emulator.config["data"]["feature_columns"][:-1]
         self.HOD_param_names        = ["log10Mmin", "log10M1", "sigma_logM", "kappa", "alpha"]
         self.cosmo_param_names      = ["N_eff", "alpha_s", "ns", "sigma8", "w0", "wa", "wb", "wc"]
-        self.nparams                = len(self.emulator_param_names)
-        self.nwalkers               = int(self.nparams * walkers_per_param)
         self.param_priors           = self.get_parameter_priors()
+        self.nparams                = self.param_priors.shape[0]
+        self.nwalkers               = int(self.nparams * walkers_per_param)
+        self.load_fiducial_params()
 
-    def get_fiducial_params(self):
+    def load_fiducial_params(self):
         FIDUCIAL_HOD_params     = pd.read_csv(f"{D13_PATH}/fiducial_data/HOD_parameters_fiducial_ng_fixed.csv")
         FIDUCIAL_cosmo_params   = pd.read_csv(f"{D13_PATH}/fiducial_data/cosmological_parameters.dat", sep=" ")
         FIDUCIAL_params         = pd.concat([FIDUCIAL_HOD_params, FIDUCIAL_cosmo_params], axis=1)
         FIDUCIAL_params         = FIDUCIAL_params.iloc[0].to_dict()
-        
-        Fiducial_params = [FIDUCIAL_params[param] for param in self.emulator_param_names]
-        # print(Fiducial_params)
-        return Fiducial_params
+
+        self.HOD_params         = [FIDUCIAL_params[param] for param in self.emulator_param_names if param in self.HOD_param_names]
+        self.cosmo_params       = [FIDUCIAL_params[param] for param in self.emulator_param_names if param in self.cosmo_param_names]
+        self.fiducial_params    = np.concatenate((self.cosmo_params, self.HOD_params))        
 
     def get_parameter_priors(self):
-
         config          = yaml.safe_load(open(f"{self.data_path}/priors_config.yaml"))
-        param_priors    = np.zeros((self.nparams, 2))
-
-        for i, param_name in enumerate(self.emulator_param_names):
-            param_priors[i] = config[param_name]
-
+        param_priors    = []
+        for param_name in self.emulator_param_names:
+            if not param_name in self.cosmo_param_names:
+                param_priors.append(config[param_name])
+        param_priors = np.array(param_priors)
         return param_priors
         
     def load_covariance_matrix(self):
@@ -133,16 +133,15 @@ class Likelihood:
         return r 
     
 
-    def inrange(self, params):
+    def inrange(self, HOD_params):
         """
         Check if the parameters are within the prior range
         """
-        return np.all((params >= self.param_priors[:,0]) & (params <= self.param_priors[:,1]))
+        return np.all((HOD_params >= self.param_priors[:,0]) & (HOD_params <= self.param_priors[:,1]))
     
-    def get_wp_theory(self, params):
-
+    def get_wp_theory(self, HOD_params):
         emul_input = np.hstack((
-            params * np.ones_like(self.r_emul_input), 
+            np.concatenate((self.cosmo_params, HOD_params)) * np.ones_like(self.r_emul_input), 
             self.r_emul_input
         ))
         xi_theory = self.emulator(emul_input)
@@ -160,15 +159,14 @@ class Likelihood:
         )
         return w_p_theory
     
-    def log_likelihood(self, params):
-        
-        wp_theory   = self.get_wp_theory(params)
+    def log_likelihood(self, HOD_params):
+        wp_theory   = self.get_wp_theory(HOD_params)
         delta       = wp_theory - self.w_p_data 
         return -0.5 * delta @ self.cov_matrix_inv @ delta 
     
-    def log_prob(self, params):
-        if self.inrange(params):
-            lnprob = self.log_likelihood(params)
+    def log_prob(self, HOD_params):
+        if self.inrange(HOD_params):
+            lnprob = self.log_likelihood(HOD_params)
         else:
             lnprob = -np.inf
         return lnprob
@@ -176,10 +174,10 @@ class Likelihood:
 
     def run_chain(
             self,
-            filename:      str,
-            stddev_factor: float,
-            max_n:         int      = int(1e5),
-            moves                   = emcee.moves.DEMove()
+            filename:           str,
+            stddev_factor:      float,
+            max_n:              int     = int(5e4),
+            moves                       = emcee.moves.DEMove()
             ):
         
 
@@ -192,9 +190,8 @@ class Likelihood:
             print(f"Running chain, storing in {outfile}...")
 
         # Initial chain 
-        init_param_values = self.get_fiducial_params()
         np.random.seed(4200)
-        initial_step   = init_param_values + stddev_factor * np.random.normal(0, 1, size=(self.nwalkers, self.nparams))
+        initial_step   = self.HOD_params + stddev_factor * np.random.normal(0, 1, size=(self.nwalkers, self.nparams))
 
         sampler = emcee.EnsembleSampler(
             self.nwalkers, 
@@ -203,7 +200,6 @@ class Likelihood:
             moves = moves,
         )
 
-        
         with h5py.File(outfile, "w") as f:
             # Create resizable datasets to store the chain
             dset_pos  = f.create_dataset("chain", (max_n, self.nwalkers, self.nparams), maxshape=(None, self.nwalkers, self.nparams))
@@ -288,8 +284,11 @@ class Likelihood:
                 
         return None 
 
-    
-# L4 = Likelihood(walkers_per_param=4, use_MGGLAM=False)
+
+L4 = Likelihood(walkers_per_param=4, use_MGGLAM=False)
+L4.run_chain("fixed_cosmo_DE_4w_5e4.hdf5", check_convergence=False, stddev_factor=1e-3, max_n=int(5e4), moves=emcee.moves.DEMove())
+# L4.run_chain_test()
+
 # L4.run_chain("DE_4w_1e5.hdf5", check_convergence=False, stddev_factor=1e-3, max_n=int(1e5), moves=emcee.moves.DEMove())
 # L4.continue_chain("DE_4w_1e5.hdf5", check_convergence=False, max_new_iterations=int(5e5), moves=emcee.moves.DEMove())
 
