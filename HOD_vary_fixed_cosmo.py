@@ -286,18 +286,4 @@ class Likelihood:
 
 
 L4 = Likelihood(walkers_per_param=4, use_MGGLAM=False)
-L4.run_chain("fixed_cosmo_DE_4w_5e4.hdf5", check_convergence=False, stddev_factor=1e-3, max_n=int(5e4), moves=emcee.moves.DEMove())
-# L4.run_chain_test()
-
-# L4.run_chain("DE_4w_1e5.hdf5", check_convergence=False, stddev_factor=1e-3, max_n=int(1e5), moves=emcee.moves.DEMove())
-# L4.continue_chain("DE_4w_1e5.hdf5", check_convergence=False, max_new_iterations=int(5e5), moves=emcee.moves.DEMove())
-
-
-# L8 = Likelihood(walkers_per_param=8, use_MGGLAM=False)
-# L8.run_chain("DE_8w_1e5.hdf5", check_convergence=False, stddev_factor=1e-3, max_n=int(1e5), moves=emcee.moves.DEMove())
-# L8.continue_chain("DE_8w_1e5.hdf5", check_convergence=False, max_new_iterations=int(1e5), moves=emcee.moves.DEMove())
-
-
-# L10 = Likelihood(walkers_per_param=10, use_MGGLAM=False)
-# L10.run_chain("DE_10w_1e5.hdf5", check_convergence=False, stddev_factor=1e-3, max_n=int(1e5), moves=emcee.moves.DEMove())
-# L10.continue_chain("DE_10w_1e5.hdf5", check_convergence=False, max_new_iterations=int(1e5), moves=emcee.moves.DEMove())
+L4.run_chain("vary_HOD_DE_4w_2e5.hdf5", stddev_factor=1e-3, max_n=int(2e5), moves=emcee.moves.DEMove())
