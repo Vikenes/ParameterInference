@@ -30,13 +30,13 @@ class Plot_MCMC:
     def __init__(
         self,
         data_path           = "/mn/stornext/d5/data/vetleav/HOD_AbacusData/inference_data",
-        emulator_path       = "emulator_data/vary_r/emulators/compare_scaling",
-        emulator_version    = 6,
+        emulator_path       = "emulator_data/sliced_r/emulators/batch_size_3040",
+        emulator_version    = 2,
     ):
         self.data_path              = Path(data_path)
         self.emulator_path          = Path(f"{emulator_path}/version_{emulator_version}")
 
-        emul_path_suffix            = "_".join(self.emulator_path.parts[-2:])
+        emul_path_suffix            = "_".join(self.emulator_path.parts[-3:])
         self.chain_path             = Path(self.data_path / "chains" / emul_path_suffix)
         
         # Load parameter names, labels, priors, and fiducial values from emulator config
@@ -44,7 +44,7 @@ class Plot_MCMC:
         self.emulator_param_names   = self.load_emulator_param_names(self.emulator_path)
         self.nparams                = len(self.emulator_param_names)
 
-        self.HOD_param_names        = ["log10Mmin", "log10M1", "sigma_logM", "kappa", "alpha"]
+        self.HOD_param_names        = ["log10M1", "sigma_logM", "kappa", "alpha", "log10_ng"]
         self.cosmo_param_names      = ["N_eff", "alpha_s", "ns", "sigma8", "w0", "wa", "wb", "wc"]
         self.param_priors           = self.get_parameter_priors()
         
@@ -60,11 +60,11 @@ class Plot_MCMC:
 
     def get_param_names_latex(self):
         HOD_param_labels = {
-            "log10Mmin"     : r"$\log{M_\mathrm{min}}$",
             "log10M1"       : r"$\log{M_1}$",
             "sigma_logM"    : r"$\sigma_{\log{M}}$",
             "kappa"         : r"$\kappa$",
             "alpha"         : r"$\alpha$",
+            "log10_ng"      : r"$\log{n_g}$",
         }
         cosmo_param_labels = {
             "N_eff"     : r"$N_\mathrm{eff}$",
@@ -82,7 +82,7 @@ class Plot_MCMC:
         return param_names_latex_dict
     
     def get_fiducial_params(self):
-        FIDUCIAL_HOD_params     = pd.read_csv(f"{D13_PATH}/fiducial_data/HOD_parameters_fiducial_ng_fixed.csv")
+        FIDUCIAL_HOD_params     = pd.read_csv(f"{D13_PATH}/fiducial_data/HOD_parameters_fiducial.csv")
         FIDUCIAL_cosmo_params   = pd.read_csv(f"{D13_PATH}/fiducial_data/cosmological_parameters.dat", sep=" ")
         FIDUCIAL_params         = pd.concat([FIDUCIAL_HOD_params, FIDUCIAL_cosmo_params], axis=1)
         FIDUCIAL_params         = FIDUCIAL_params.iloc[0].to_dict()
@@ -435,8 +435,10 @@ class Plot_MCMC:
 
 
 global show 
-show = False
+show = True
 L = Plot_MCMC()
-L.plot_cosmo_double(filename1="DE_10w_2e5.hdf5", filename2="vary_cosmo_DE_4w_2e5.hdf5", thin_factor=10)
-L.plot_HOD_double(filename1="DE_10w_2e5.hdf5", filename2="vary_HOD_DE_4w_2e5.hdf5", thin_factor=10)
+# L.plot_cosmo("DE_4w_1e4.hdf5")
+# L.plot_HOD("DE_4w_1e4.hdf5")
+# L.plot_cosmo_double(filename1="DE_4w_1e4.hdf5", filename2="vary_cosmo_DE_4w_2e5.hdf5", thin_factor=10)
+# L.plot_HOD_double(  filename1="DE_4w_1e4.hdf5", filename2="vary_HOD_DE_4w_2e5.hdf5", thin_factor=10)
 
