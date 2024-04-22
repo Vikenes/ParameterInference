@@ -63,7 +63,7 @@ class Likelihood:
         self.r_from_rp_rpi  = np.sqrt(self.r_perp.reshape(-1,1)**2 + self.r_para.reshape(1,-1)**2)
 
         self.emulator_param_names   = self.emulator.config["data"]["feature_columns"][:-1]
-        self.HOD_param_names        = ["log10M1", "sigma_logM", "kappa", "alpha", "log10_ng"]
+        self.HOD_param_names        = ["log10_ng", "log10M1", "sigma_logM", "kappa", "alpha"]
         self.cosmo_param_names      = ["N_eff", "alpha_s", "ns", "sigma8", "w0", "wa", "wb", "wc"]
         self.param_priors           = self.get_parameter_priors()
         self.nparams                = self.param_priors.shape[0]

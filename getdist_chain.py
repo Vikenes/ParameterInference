@@ -44,7 +44,7 @@ class Plot_MCMC:
         self.emulator_param_names   = self.load_emulator_param_names(self.emulator_path)
         self.nparams                = len(self.emulator_param_names)
 
-        self.HOD_param_names        = ["log10M1", "sigma_logM", "kappa", "alpha", "log10_ng"]
+        self.HOD_param_names        = ["log10_ng", "log10M1", "sigma_logM", "kappa", "alpha"]
         self.cosmo_param_names      = ["N_eff", "alpha_s", "ns", "sigma8", "w0", "wa", "wb", "wc"]
         self.param_priors           = self.get_parameter_priors()
         
@@ -119,7 +119,7 @@ class Plot_MCMC:
         self.HOD_indices            = [self.emulator_param_names.index(param) for param in self.HOD_param_names]
         self.HOD_labels             = [param_labels_latex[param] for param in self.HOD_param_names] # Latex labels for HOD parameters
         HOD_fiducial_params         = [fiducial_params[i] for i in self.HOD_indices] # Fiducial parameter values for HOD parameters
-        self.fiducial_params_HOD    = {label: HOD_fiducial_params[i] for i, label in enumerate(self.HOD_labels)} # Fiducial parameter values for HOD parameters
+        self.fiducial_params_HOD    = {label: HOD_fiducial_params[i] for i, label in enumerate(self.HOD_param_names)} # Fiducial parameter values for HOD parameters
         HOD_param_ranges            = [tuple(self.param_priors[i]) for i in self.HOD_indices]
         self.prior_ranges_HOD       = {label: HOD_param_ranges[i] for i, label in enumerate(self.HOD_labels)}
 
@@ -245,9 +245,9 @@ class Plot_MCMC:
             )
 
         HOD_samples = MCSamples(
-            samples = samples[:, self.HOD_indices], 
-            names   = self.HOD_labels, 
-            labels  = self.HOD_labels
+            samples = samples[:, self.HOD_indices],
+            names   = self.HOD_param_names,
+            labels  = self.HOD_labels,
             )
         g = plots.get_subplot_plotter()
 
@@ -395,15 +395,14 @@ class Plot_MCMC:
         
         HOD_samples1 = MCSamples(
             samples = samples1[:, HOD_indices1], 
-            names   = self.HOD_labels, 
-            labels  = self.HOD_labels, 
+            names   = self.HOD_param_names, 
+            labels  = self.HOD_labels,
             label   = r"Varying $\mathcal{C}+\mathcal{G}$")
         HOD_samples2 = MCSamples(
-            samples = samples2[:, HOD_indices2], 
-            names   = self.HOD_labels, 
+            samples = samples2[:, HOD_indices2],
+            names   = self.HOD_param_names, 
             labels  = self.HOD_labels, 
             label   = r"Varying $\mathcal{G}$")
-
         g = plots.get_subplot_plotter()
 
         g.triangle_plot(
@@ -435,10 +434,10 @@ class Plot_MCMC:
 
 
 global show 
-show = True
+show = False
 L = Plot_MCMC()
-# L.plot_cosmo("DE_4w_1e4.hdf5")
-# L.plot_HOD("DE_4w_1e4.hdf5")
-# L.plot_cosmo_double(filename1="DE_4w_1e4.hdf5", filename2="vary_cosmo_DE_4w_2e5.hdf5", thin_factor=10)
-# L.plot_HOD_double(  filename1="DE_4w_1e4.hdf5", filename2="vary_HOD_DE_4w_2e5.hdf5", thin_factor=10)
+# L.plot_cosmo("DE_4w_1e5.hdf5")
+# L.plot_HOD("DE_4w_1e5.hdf5")
+# L.plot_cosmo_double(filename1="DE_4w_1e5.hdf5", filename2="vary_cosmo_DE_4w_1e5.hdf5", )
+# L.plot_HOD_double(  filename1="DE_4w_1e5.hdf5", filename2="vary_HOD_DE_4w_1e5.hdf5",   )
 
