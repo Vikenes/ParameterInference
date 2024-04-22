@@ -13,14 +13,13 @@ sys.path.append("/uio/hume/student-u74/vetleav/Documents/thesis/emulation/emul_u
 from _predict import Predictor 
 
 D13_PATH = "/mn/stornext/d13/euclid_nobackup/halo/AbacusSummit/emulation_files/"
-D5_PATH = "emulator_data/vary_r/"
 
 
 class xi_emulator_class:
     def __init__(
             self, 
-            LIGHTING_LOGS_PATH  = "emulator_data/vary_r/emulators/compare_scaling",
-            version             =   6,
+            LIGHTING_LOGS_PATH  = "emulator_data/sliced_r/emulators/batch_size_3040",
+            version             =   2,
             ):
         path            = Path(f"{LIGHTING_LOGS_PATH}/version_{version}")
         self.predictor  = Predictor.from_path(path)
@@ -39,10 +38,9 @@ class Likelihood:
     def __init__(
         self,
         data_path           = "/mn/stornext/d5/data/vetleav/HOD_AbacusData/inference_data",
-        emulator_path       = "emulator_data/vary_r/emulators/compare_scaling",
-        emulator_version    = 6,
+        emulator_path       = "emulator_data/sliced_r/emulators/batch_size_3040",
+        emulator_version    = 2,
         walkers_per_param   = 4,
-        use_MGGLAM          = False,
     ):
 
         self.data_path              = Path(data_path)
@@ -50,15 +48,11 @@ class Likelihood:
         self.emulator_path          = Path(f"{emulator_path}/version_{emulator_version}")
         self.emulator               = xi_emulator_class(emulator_path, emulator_version)
 
-        emul_path_suffix            = "_".join(self.emulator_path.parts[-2:])
+        emul_path_suffix            = "_".join(self.emulator_path.parts[-3:])
         self.outpath                = Path(self.data_path / "chains" / emul_path_suffix)
         self.outpath.mkdir(parents=True, exist_ok=True)
-         
 
-        if use_MGGLAM:
-            self.cov_matrix_inv         = self.load_covariance_matrix_MGGLAM()
-        else:
-            self.cov_matrix_inv         = self.load_covariance_matrix()
+        self.cov_matrix_inv         = self.load_covariance_matrix()
 
         # Use wp data from fiducial AbacusSummit simulation, NOT MGGLAM
         self.r_perp, self.w_p_data  = self.load_wp_data()
@@ -69,20 +63,19 @@ class Likelihood:
         self.r_from_rp_rpi  = np.sqrt(self.r_perp.reshape(-1,1)**2 + self.r_para.reshape(1,-1)**2)
 
         self.emulator_param_names   = self.emulator.config["data"]["feature_columns"][:-1]
-        self.HOD_param_names        = ["log10Mmin", "log10M1", "sigma_logM", "kappa", "alpha"]
+        self.HOD_param_names        = ["log10M1", "sigma_logM", "kappa", "alpha", "log10_ng"]
         self.cosmo_param_names      = ["N_eff", "alpha_s", "ns", "sigma8", "w0", "wa", "wb", "wc"]
         self.nparams                = len(self.emulator_param_names)
         self.nwalkers               = int(self.nparams * walkers_per_param)
         self.param_priors           = self.get_parameter_priors()
 
     def get_fiducial_params(self):
-        FIDUCIAL_HOD_params     = pd.read_csv(f"{D13_PATH}/fiducial_data/HOD_parameters_fiducial_ng_fixed.csv")
+        FIDUCIAL_HOD_params     = pd.read_csv(f"{D13_PATH}/fiducial_data/HOD_parameters_fiducial.csv")
         FIDUCIAL_cosmo_params   = pd.read_csv(f"{D13_PATH}/fiducial_data/cosmological_parameters.dat", sep=" ")
         FIDUCIAL_params         = pd.concat([FIDUCIAL_HOD_params, FIDUCIAL_cosmo_params], axis=1)
         FIDUCIAL_params         = FIDUCIAL_params.iloc[0].to_dict()
         
         Fiducial_params = [FIDUCIAL_params[param] for param in self.emulator_param_names]
-        # print(Fiducial_params)
         return Fiducial_params
 
     def get_parameter_priors(self):
@@ -100,23 +93,18 @@ class Likelihood:
         Load covariance matrix and its inverse
         Computed from the wp data loaded in "load_wp_data()"
         """
-        cov_matrix          = np.load(self.data_path / "cov_wp_small.npy") / 64.0 # Load covariance matrix
+        # Load covariance matrix
+        # Scale by 1/4^3, since cov matrix is computed from simulations with 1/4^3 times the volume
+        cov_matrix          = np.load(self.data_path / "cov_wp_small.npy") / 64.0 
         return np.linalg.inv(cov_matrix)
-    
-    def load_covariance_matrix_MGGLAM(self):
-        """
-        Load covariance matrix and its inverse
-        Computed from the wp data loaded in "load_wp_data()"
-        """
-        cov_matrix          = np.load(self.data_path / "MGGLAM/cov_wp_fiducial.npy") / 8.0 # Load covariance matrix
-        return np.linalg.inv(cov_matrix)
+
         
     def load_wp_data(self):
         """
         Load fiducial wp data
         computed from fiducial AbacusSummit simulation: c000_ph000-c000_ph024
         """
-        WP = h5py.File(self.data_path / "wp_from_sz_fiducial_ng_fixed.hdf5", "r")
+        WP = h5py.File(self.data_path / "wp_from_sz_fiducial.hdf5", "r")
         r_perp = WP["rp_mean"][:]
         w_p_data = WP["wp_mean"][:]
         WP.close()
@@ -127,7 +115,7 @@ class Likelihood:
         Load fiducial xi data
         computed from fiducial AbacusSummit simulation: c000_ph000-c000_ph024
         """
-        XI = h5py.File(self.data_path / "tpcf_r_fiducial_ng_fixed.hdf5", "r")
+        XI = h5py.File(self.data_path / "tpcf_r_fiducial.hdf5", "r")
         r  = XI["r_mean"][:]
         XI.close()
         return r 
@@ -289,10 +277,10 @@ class Likelihood:
         return None 
 
     
-# L4 = Likelihood(walkers_per_param=4, use_MGGLAM=False)
-# L8 = Likelihood(walkers_per_param=8, use_MGGLAM=False)
-# L10 = Likelihood(walkers_per_param=10, use_MGGLAM=False)
-# L4.run_chain("DE_4w_1e5.hdf5", stddev_factor=1e-3, max_n=int(1e5), moves=emcee.moves.DEMove())
+L4 = Likelihood(walkers_per_param=4)
+# L8 = Likelihood(walkers_per_param=8)
+# L10 = Likelihood(walkers_per_param=10)
+# L4.run_chain("DE_4w_1e4.hdf5", stddev_factor=1e-3, max_n=int(1e4), moves=emcee.moves.DEMove())
 # L4.continue_chain("DE_4w_1e5.hdf5", max_new_iterations=int(5e5), moves=emcee.moves.DEMove())
 # L8.run_chain("DE_8w_1e5.hdf5", stddev_factor=1e-3, max_n=int(1e5), moves=emcee.moves.DEMove())
 # L8.continue_chain("DE_8w_1e5.hdf5", max_new_iterations=int(1e5), moves=emcee.moves.DEMove())
