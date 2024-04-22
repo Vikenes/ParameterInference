@@ -280,7 +280,7 @@ class Likelihood:
 L4 = Likelihood(walkers_per_param=4)
 # L8 = Likelihood(walkers_per_param=8)
 # L10 = Likelihood(walkers_per_param=10)
-# L4.run_chain("DE_4w_1e4.hdf5", stddev_factor=1e-3, max_n=int(1e4), moves=emcee.moves.DEMove())
+# L4.run_chain("DE_4w_1e5.hdf5", stddev_factor=1e-3, max_n=int(1e5), moves=emcee.moves.DEMove())
 # L4.continue_chain("DE_4w_1e5.hdf5", max_new_iterations=int(5e5), moves=emcee.moves.DEMove())
 # L8.run_chain("DE_8w_1e5.hdf5", stddev_factor=1e-3, max_n=int(1e5), moves=emcee.moves.DEMove())
 # L8.continue_chain("DE_8w_1e5.hdf5", max_new_iterations=int(1e5), moves=emcee.moves.DEMove())
