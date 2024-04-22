@@ -63,7 +63,7 @@ class Likelihood:
         self.r_from_rp_rpi  = np.sqrt(self.r_perp.reshape(-1,1)**2 + self.r_para.reshape(1,-1)**2)
 
         self.emulator_param_names   = self.emulator.config["data"]["feature_columns"][:-1]
-        self.HOD_param_names        = ["log10M1", "sigma_logM", "kappa", "alpha", "log10_ng"]
+        self.HOD_param_names        = ["log10_ng", "log10M1", "sigma_logM", "kappa", "alpha"]
         self.cosmo_param_names      = ["N_eff", "alpha_s", "ns", "sigma8", "w0", "wa", "wb", "wc"]
         self.nparams                = len(self.emulator_param_names)
         self.nwalkers               = int(self.nparams * walkers_per_param)
@@ -277,12 +277,8 @@ class Likelihood:
         return None 
 
     
-L4 = Likelihood(walkers_per_param=4)
-# L8 = Likelihood(walkers_per_param=8)
+# L4 = Likelihood(walkers_per_param=4)
+L8 = Likelihood(walkers_per_param=8)
 # L10 = Likelihood(walkers_per_param=10)
 # L4.run_chain("DE_4w_1e5.hdf5", stddev_factor=1e-3, max_n=int(1e5), moves=emcee.moves.DEMove())
-# L4.continue_chain("DE_4w_1e5.hdf5", max_new_iterations=int(5e5), moves=emcee.moves.DEMove())
-# L8.run_chain("DE_8w_1e5.hdf5", stddev_factor=1e-3, max_n=int(1e5), moves=emcee.moves.DEMove())
-# L8.continue_chain("DE_8w_1e5.hdf5", max_new_iterations=int(1e5), moves=emcee.moves.DEMove())
-# L10.run_chain("DE_10w_1e5.hdf5", stddev_factor=1e-3, max_n=int(1e5), moves=emcee.moves.DEMove())
-# L10.continue_chain("DE_10w_1e5.hdf5", max_new_iterations=int(1e5), moves=emcee.moves.DEMove())
+L8.run_chain("DE_8w_2e5.hdf5", stddev_factor=1e-3, max_n=int(2e5), moves=emcee.moves.DEMove())

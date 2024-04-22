@@ -269,5 +269,5 @@ class Likelihood:
         return None 
 
 
-L4 = Likelihood(walkers_per_param=4)
-L4.run_chain("vary_cosmo_DE_4w_1e5.hdf5", stddev_factor=1e-3, max_n=int(1e5), moves=emcee.moves.DEMove())
+L4 = Likelihood(walkers_per_param=8)
+L4.run_chain("vary_cosmo_DE_8w_2e5.hdf5", stddev_factor=1e-3, max_n=int(2e5), moves=emcee.moves.DEMove())
