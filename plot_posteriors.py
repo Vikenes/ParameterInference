@@ -1,4 +1,3 @@
-import time
 import matplotlib.backends
 import matplotlib.backends.backend_agg
 import numpy as np 
@@ -6,21 +5,16 @@ import h5py
 from pathlib import Path
 import pandas as pd 
 import yaml 
-import corner 
 from getdist import plots, MCSamples
 import matplotlib
 # matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-from matplotlib import gridspec
 matplotlib.rcParams['text.usetex'] = True
 matplotlib.rcParams.update({'font.size': 12})
 matplotlib.rcParams['text.latex.preamble'] = r'\usepackage{amsmath}'
 # matplotlib.rcParams['text.latex.preamble'] = r'\usepackage{physics}'
 params = {'xtick.top': True, 'ytick.right': True, 'xtick.direction': 'in', 'ytick.direction': 'in'}
 plt.rcParams.update(params)
-
-
-# sys.path.append("/uio/hume/student-u74/vetleav/Documents/thesis/HOD/HaloModel/HOD_and_cosmo_emulation/parameter_samples_plot")
 
 D13_PATH = "/mn/stornext/d13/euclid_nobackup/halo/AbacusSummit/emulation_files/"
 
@@ -139,8 +133,9 @@ class Plot_MCMC:
         print(f"  - Chain shape:  {fff['chain'].shape}")
         print(f"  - Total chains: {fff['chain'].shape[0] * fff['chain'].shape[1]:.2e}")
         print()
+        fff.close()
         return None
-    
+ 
     def load_samples(
             self,
             chainfile:      Path,
@@ -163,7 +158,7 @@ class Plot_MCMC:
         else:
             thin   = int(thin_factor * np.min(tau))
 
-        chain       = fff["chain"]   # Acces chain 
+        chain       = fff["chain"]   # Access chain
         samples = chain[:].reshape(-1, chain.shape[-1])[burnin::thin, ...]   
         fff.close()
         return samples
@@ -433,10 +428,13 @@ class Plot_MCMC:
 
 
 global show 
-show = False
+show = True
 L = Plot_MCMC()
 # L.plot_cosmo("DE_4w_1e5.hdf5")
 # L.plot_HOD("DE_4w_1e5.hdf5")
-# L.plot_cosmo_double(filename1="DE_8w_2e5.hdf5", filename2="vary_cosmo_DE_8w_2e5.hdf5", )
-# L.plot_HOD_double(  filename1="DE_8w_2e5.hdf5", filename2="vary_HOD_DE_8w_2e5.hdf5",   )
+# L.print_info("DE_8w_2e5.hdf5")
+# L.print_info("vary_cosmo_DE_8w_2e5.hdf5")
+
+# L.plot_cosmo_double(filename1="DE_8w_2e5.hdf5", filename2="vary_cosmo_DE_8w_2e5.hdf5")
+# L.plot_HOD_double(  filename1="DE_8w_2e5.hdf5", filename2="vary_HOD_DE_8w_2e5.hdf5")
 
