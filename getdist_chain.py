@@ -23,14 +23,13 @@ plt.rcParams.update(params)
 # sys.path.append("/uio/hume/student-u74/vetleav/Documents/thesis/HOD/HaloModel/HOD_and_cosmo_emulation/parameter_samples_plot")
 
 D13_PATH = "/mn/stornext/d13/euclid_nobackup/halo/AbacusSummit/emulation_files/"
-D5_PATH = "emulator_data/vary_r/"
 
 
 class Plot_MCMC:
     def __init__(
         self,
-        data_path           = "/mn/stornext/d5/data/vetleav/HOD_AbacusData/inference_data",
-        emulator_path       = "emulator_data/sliced_r/emulators/batch_size_3040",
+        data_path           = "data/inference_data",
+        emulator_path       = "data/emulator_data/sliced_r/emulators/batch_size_3040",
         emulator_version    = 2,
     ):
         self.data_path              = Path(data_path)

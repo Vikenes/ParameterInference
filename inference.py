@@ -18,7 +18,7 @@ D13_PATH = "/mn/stornext/d13/euclid_nobackup/halo/AbacusSummit/emulation_files/"
 class xi_emulator_class:
     def __init__(
             self, 
-            LIGHTING_LOGS_PATH  = "emulator_data/sliced_r/emulators/batch_size_3040",
+            LIGHTING_LOGS_PATH  = "data/emulator_data/sliced_r/emulators/batch_size_3040",
             version             =   2,
             ):
         path            = Path(f"{LIGHTING_LOGS_PATH}/version_{version}")
@@ -37,8 +37,8 @@ class xi_emulator_class:
 class Likelihood:
     def __init__(
         self,
-        data_path           = "/mn/stornext/d5/data/vetleav/HOD_AbacusData/inference_data",
-        emulator_path       = "emulator_data/sliced_r/emulators/batch_size_3040",
+        data_path           = "data/inference_data",
+        emulator_path       = "data/emulator_data/sliced_r/emulators/batch_size_3040",
         emulator_version    = 2,
         walkers_per_param   = 4,
     ):
