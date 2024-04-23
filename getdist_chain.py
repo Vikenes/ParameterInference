@@ -438,6 +438,6 @@ show = False
 L = Plot_MCMC()
 # L.plot_cosmo("DE_4w_1e5.hdf5")
 # L.plot_HOD("DE_4w_1e5.hdf5")
-# L.plot_cosmo_double(filename1="DE_4w_1e5.hdf5", filename2="vary_cosmo_DE_4w_1e5.hdf5", )
-# L.plot_HOD_double(  filename1="DE_4w_1e5.hdf5", filename2="vary_HOD_DE_4w_1e5.hdf5",   )
+# L.plot_cosmo_double(filename1="DE_8w_2e5.hdf5", filename2="vary_cosmo_DE_8w_2e5.hdf5", )
+# L.plot_HOD_double(  filename1="DE_8w_2e5.hdf5", filename2="vary_HOD_DE_8w_2e5.hdf5",   )
 
