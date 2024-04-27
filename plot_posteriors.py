@@ -10,7 +10,10 @@ import matplotlib
 # matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 matplotlib.rcParams['text.usetex'] = True
-matplotlib.rcParams.update({'font.size': 12})
+matplotlib.rcParams.update({
+    'font.size': 20, 
+    # 'axes.labelsize': 20,
+    })
 matplotlib.rcParams['text.latex.preamble'] = r'\usepackage{amsmath}'
 # matplotlib.rcParams['text.latex.preamble'] = r'\usepackage{physics}'
 params = {'xtick.top': True, 'ytick.right': True, 'xtick.direction': 'in', 'ytick.direction': 'in'}
@@ -279,6 +282,7 @@ class Plot_MCMC:
             thin:           int  = None,
             burnin_factor:  float = 10,
             thin_factor:    float = 5,
+            to_thesis:      bool  = False,
         ):
 
         chainfile1     = Path(self.chain_path / filename1)
@@ -315,7 +319,11 @@ class Plot_MCMC:
             labels  = self.cosmo_labels, 
             label   = r"Varying $\mathcal{C}$")
 
-        g = plots.get_subplot_plotter()
+        g = plots.get_subplot_plotter(scaling=False)
+        g.settings.axes_labelsize = 22
+        g.settings.axes_fontsize = 18
+        g.settings.legend_fontsize = 20
+        g.settings.subplot_size_ratio = 1
 
         g.triangle_plot(
             [cosmo_samples1, cosmo_samples2], 
@@ -327,8 +335,6 @@ class Plot_MCMC:
             )
 
         if show:
-            # Add figure title
-            # plt.suptitle("Testing title")
             plt.show()
             return 
         
@@ -336,13 +342,21 @@ class Plot_MCMC:
             # Set figname to cosmo_filename-stem.png
             figname = f"cosmo_compare-{filename1.split('.')[0]}-{filename2.split('.')[0]}.png"
 
-        output_file = Path(f"figures/{figname}")
-        if output_file.exists():
-            input(f"  ! File {output_file} already exists. Press enter to overwrite ...")
-            figname = f"{output_file.stem}_new{output_file.suffix}"
-            output_file = Path(f"figures/{figname}")
-        print(f"Saving {output_file} ...")
-        g.export(figname, adir="figures")
+        if not type(figname) is str:
+            raise ValueError("figname must be a string.")
+        if not to_thesis:
+            g.export(figname, adir="figures")
+
+        else:
+            figname_stem = figname.split('.')[0] if "." in figname else figname
+            output_file_png = f"{figname_stem}.png"
+            output_file_pdf = f"{figname_stem}.pdf"
+            
+            print(f"Saving {output_file_png} ...")
+            g.export(output_file_png, adir="figures/thesis_figures")
+            print(f"Saving {output_file_pdf} ...")
+            g.export(output_file_pdf, adir="figures/thesis_figures")
+
 
     def plot_HOD_double(
             self,
@@ -353,6 +367,7 @@ class Plot_MCMC:
             thin:           int  = None,
             burnin_factor:  float = 10,
             thin_factor:    float = 5,
+            to_thesis:      bool  = False,
         ):
 
         chainfile1     = Path(self.chain_path / filename1)
@@ -397,8 +412,13 @@ class Plot_MCMC:
             names   = self.HOD_param_names, 
             labels  = self.HOD_labels, 
             label   = r"Varying $\mathcal{G}$")
-        g = plots.get_subplot_plotter()
-
+        
+        g = plots.get_subplot_plotter(scaling=False)
+        g.settings.axes_labelsize = 22
+        g.settings.axes_fontsize = 18
+        g.settings.legend_fontsize = 20
+        g.settings.subplot_size_ratio = 1
+        
         g.triangle_plot(
             [HOD_samples1, HOD_samples2], 
             filled          = True,
@@ -409,32 +429,37 @@ class Plot_MCMC:
             )
 
         if show:
-            # Add figure title
-            # plt.suptitle("Testing title")
             plt.show()
             return 
         
         if figname is None:
             # Set figname to HOD_filename-stem.png
             figname = f"HOD_compare-{filename1.split('.')[0]}-{filename2.split('.')[0]}.png"
+        
+        if not type(figname) is str:
+            raise ValueError("figname must be a string.")
+        if not to_thesis:
+            g.export(figname, adir="figures")
 
-        output_file = Path(f"figures/{figname}")
-        if output_file.exists():
-            input(f"  ! File {output_file} already exists. Press enter to overwrite ...")
-            figname = f"{output_file.stem}_new{output_file.suffix}"
-            output_file = Path(f"figures/{figname}")
-        print(f"Saving {output_file} ...")
-        g.export(figname, adir="figures")
+        else:
+            figname_stem = figname.split('.')[0] if "." in figname else figname
+            output_file_png = f"{figname_stem}.png"
+            output_file_pdf = f"{figname_stem}.pdf"
+            
+            print(f"Saving {output_file_png} ...")
+            g.export(output_file_png, adir="figures/thesis_figures")
+            print(f"Saving {output_file_pdf} ...")
+            g.export(output_file_pdf, adir="figures/thesis_figures")
 
 
 global show 
 show = True
-L = Plot_MCMC()
-# L.plot_cosmo("DE_4w_1e5.hdf5")
-# L.plot_HOD("DE_4w_1e5.hdf5")
-# L.print_info("DE_8w_2e5.hdf5")
-# L.print_info("vary_cosmo_DE_8w_2e5.hdf5")
+# show = False
 
-# L.plot_cosmo_double(filename1="DE_8w_2e5.hdf5", filename2="vary_cosmo_DE_8w_2e5.hdf5")
-# L.plot_HOD_double(  filename1="DE_8w_2e5.hdf5", filename2="vary_HOD_DE_8w_2e5.hdf5")
+L = Plot_MCMC()
+
+# L.plot_cosmo_double(filename1="DE_8w_2e5.hdf5", filename2="vary_cosmo_DE_8w_2e5.hdf5", 
+#                     figname="MCMC_cosmo_posteriors.pdf", to_thesis=True)
+# L.plot_HOD_double(filename1="DE_8w_2e5.hdf5", filename2="vary_HOD_DE_8w_2e5.hdf5",
+#                     figname="MCMC_HOD_posteriors.pdf", to_thesis=True)
 
