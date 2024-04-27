@@ -41,6 +41,8 @@ class Likelihood:
         emulator_path       = "data/emulator_data/sliced_r/emulators/batch_size_3040",
         emulator_version    = 2,
         walkers_per_param   = 4,
+        r_min               = 0.0,
+        r_max               = 105.0,
     ):
 
         self.data_path              = Path(data_path)
@@ -57,9 +59,10 @@ class Likelihood:
         # Use wp data from fiducial AbacusSummit simulation, NOT MGGLAM
         self.r_perp, self.w_p_data  = self.load_wp_data()
 
-        self.r_xi           = self.get_r_from_fiducial_xi()
+        r_xi           = self.get_r_from_fiducial_xi()
+        self.r_xi     = r_xi[(r_xi >= r_min) & (r_xi <= r_max)]
         self.r_emul_input   = self.r_xi.reshape(-1,1)
-        self.r_para         = np.linspace(0, int(np.max(self.r_xi)), int(1000))
+        self.r_para         = np.linspace(0, r_max, int(1500))
         self.r_from_rp_rpi  = np.sqrt(self.r_perp.reshape(-1,1)**2 + self.r_para.reshape(1,-1)**2)
 
         self.emulator_param_names   = self.emulator.config["data"]["feature_columns"][:-1]
@@ -132,7 +135,7 @@ class Likelihood:
         xi_theory = self.emulator(emul_input)
 
         xiR_func = IUS(
-            self.r_xi, xi_theory
+            self.r_xi, xi_theory, ext=1,
         )
 
         w_p_theory = 2.0 * simps(
@@ -269,5 +272,5 @@ class Likelihood:
         return None 
 
 
-L4 = Likelihood(walkers_per_param=8)
-L4.run_chain("vary_cosmo_DE_8w_2e5.hdf5", stddev_factor=1e-3, max_n=int(2e5), moves=emcee.moves.DEMove())
+L4 = Likelihood(walkers_per_param=4, r_min=1.0, r_max=50.0)
+L4.run_chain("vary_cosmo_DE_4w_1e5_r1_50.hdf5", stddev_factor=1e-3, max_n=int(1e5), moves=emcee.moves.DEMove())
