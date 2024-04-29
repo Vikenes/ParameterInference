@@ -385,7 +385,10 @@ class Plot_MCMC:
             _input = input("Push to git? (y/n): ")
             if _input.lower() == "y":
                 os.system("cd figures/thesis_figures")
-                os.system("git pull && git add . && git commit -m 'new figs' && git push")
+                os.system("git pull")
+                os.system("git add *")
+                os.system("git commit -m 'new figs'")
+                os.system("git push")
 
             
 
@@ -487,10 +490,11 @@ class Plot_MCMC:
             g.export(output_file_pdf, adir="figures/thesis_figures")
             _input = input("Push to git? (y/n): ")
             if _input.lower() == "y":
-                # os.system("plotgush")
                 os.system("cd figures/thesis_figures")
-                os.system("git pull && git add . && git commit -m 'new figs' && git push")
-            
+                os.system("git pull")
+                os.system("git add *")
+                os.system("git commit -m 'new figs'")
+                os.system("git push")
 
     def plot_HOD_double(
             self,
