@@ -67,7 +67,7 @@ class Likelihood:
         self.emulator_param_names   = self.emulator.config["data"]["feature_columns"][:-1]
         self.HOD_param_names        = ["log10M1", "sigma_logM", "kappa", "alpha", "log10_ng"]
         self.cosmo_param_names      = ["N_eff", "alpha_s", "ns", "sigma8", "w0", "wa", "wb", "wc"]
-        self.load_fixed_and_varying_params(fixed_cosmo_params=["wa", "alpha_s"])
+        self.load_fixed_and_varying_params(fixed_cosmo_params=["wa", "alpha_s", "w0"])
         self.param_priors           = self.get_parameter_priors()
         self.nparams                = self.param_priors.shape[0]
         self.nwalkers               = int(self.nparams * walkers_per_param)
@@ -88,7 +88,7 @@ class Likelihood:
         self.varying_param_indices = [self.emulator_param_names.index(param) for param in varying_param_names]
         self.fixed_param_indices   = [self.emulator_param_names.index(param) for param in fixed_param_names]
         fixed_param_values         = [FIDUCIAL_params[param] for param in self.emulator_param_names if param in fixed_param_names]
-        self.input_params               = np.zeros_like(self.emulator_param_names, dtype=float)
+        self.input_params          = np.zeros_like(self.emulator_param_names, dtype=float)
         self.input_params[self.fixed_param_indices] = fixed_param_values
         self.fixed_param_names = fixed_param_names
 
@@ -220,4 +220,4 @@ class Likelihood:
         return None 
  
 L4 = Likelihood(walkers_per_param=4, r_min=0.0, r_max=105.0)
-L4.run_chain("vary_cosmo_wa_alphas_fixed_DE_4w_5e4.hdf5", stddev_factor=1e-3, max_n=int(5e4), moves=emcee.moves.DEMove())
+L4.run_chain("vary_cosmo_wa_alphas_w0_fixed_DE_4w_1e5.hdf5", stddev_factor=1e-3, max_n=int(1e5), moves=emcee.moves.DEMove())
