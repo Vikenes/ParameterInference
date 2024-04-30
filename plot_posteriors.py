@@ -7,7 +7,7 @@ import pandas as pd
 import yaml 
 from getdist import plots, MCSamples
 import matplotlib
-import os 
+import subprocess
 # matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 matplotlib.rcParams['text.usetex'] = True
@@ -19,7 +19,6 @@ matplotlib.rcParams['text.latex.preamble'] = r'\usepackage{amsmath}'
 # matplotlib.rcParams['text.latex.preamble'] = r'\usepackage{physics}'
 params = {'xtick.top': True, 'ytick.right': True, 'xtick.direction': 'in', 'ytick.direction': 'in'}
 plt.rcParams.update(params)
-
 D13_PATH = "/mn/stornext/d13/euclid_nobackup/halo/AbacusSummit/emulation_files/"
 
 
@@ -39,13 +38,18 @@ class Plot_MCMC:
         # Load parameter names, labels, priors, and fiducial values from emulator config
         # Ensures correct order of parameters when predicting 
         self.emulator_param_names   = self.load_emulator_param_names(self.emulator_path)
-        self.nparams                = len(self.emulator_param_names)
 
-        self.HOD_param_names        = ["log10_ng", "log10M1", "sigma_logM", "kappa", "alpha"]
+        self.HOD_param_names        = ["log10_ng", "log10M1", "sigma_logM", "alpha", "kappa"]
         self.cosmo_param_names      = ["wb", "wc", "sigma8", "w0", "wa", "ns", "alpha_s",  "N_eff"]
-        self.param_priors           = self.get_parameter_priors()
+        self.nparams                = len(self.emulator_param_names)
+        self.nparams_HOD            = len(self.HOD_param_names)
+        self.nparams_cosmo          = len(self.cosmo_param_names)
         
-        self.load_plot_quantities()        
+        self.load_parameter_priors()
+        self.load_param_names_latex()
+        self.load_fiducial_params()
+        self.load_plot_quantities()   
+
 
 
 
@@ -55,15 +59,15 @@ class Plot_MCMC:
             config = yaml.safe_load(fp)
         return config["data"]["feature_columns"][:-1]
 
-    def get_param_names_latex(self):
-        HOD_param_labels = {
+    def load_param_names_latex(self):
+        self.HOD_latex_labels_dict = {
             "log10M1"       : r"$\log{M_1}$",
             "sigma_logM"    : r"$\sigma_{\log{M}}$",
             "kappa"         : r"$\kappa$",
             "alpha"         : r"$\alpha$",
             "log10_ng"      : r"$\log{n_g}$",
         }
-        cosmo_param_labels = {
+        self.cosmo_latex_labels_dict = {
             "N_eff"     : r"$N_\mathrm{eff}$",
             "alpha_s"   : r"$\mathrm{d}n_s/\mathrm{d}\ln{k}$",
             "ns"        : r"$n_s$",
@@ -74,73 +78,53 @@ class Plot_MCMC:
             "wc"        : r"$\omega_\mathrm{cdm}$",
         }
 
-        # Combine the two dictionaries
-        param_names_latex_dict = {**HOD_param_labels, **cosmo_param_labels}
-        return param_names_latex_dict
+        return None
     
-    def get_fiducial_params(self):
-        FIDUCIAL_HOD_params     = pd.read_csv(f"{D13_PATH}/fiducial_data/HOD_parameters_fiducial.csv")
-        FIDUCIAL_cosmo_params   = pd.read_csv(f"{D13_PATH}/fiducial_data/cosmological_parameters.dat", sep=" ")
-        FIDUCIAL_params         = pd.concat([FIDUCIAL_HOD_params, FIDUCIAL_cosmo_params], axis=1)
-        FIDUCIAL_params         = FIDUCIAL_params.iloc[0].to_dict()
-        
-        Fiducial_params = [FIDUCIAL_params[param] for param in self.emulator_param_names]
-        return Fiducial_params
+    def load_fiducial_params(self):
+        fiducial_HOD_params     = pd.read_csv(f"{D13_PATH}/fiducial_data/HOD_parameters_fiducial.csv")
+        fiducial_cosmo_params   = pd.read_csv(f"{D13_PATH}/fiducial_data/cosmological_parameters.dat", sep=" ")
+        self.fiducial_cosmo_params_dict = fiducial_cosmo_params.iloc[0].to_dict()
+        self.fiducial_HOD_params_dict   = fiducial_HOD_params.iloc[0].to_dict()
+        return None
 
-    def get_parameter_priors(self):
-
+    def load_parameter_priors(self):
         config          = yaml.safe_load(open(f"{self.data_path}/priors_config.yaml"))
-        param_priors    = np.zeros((self.nparams, 2))
-
-        for i, param_name in enumerate(self.emulator_param_names):
-            param_priors[i] = config[param_name]
-
-        return param_priors
-    
+        self.param_priors    = {}
+        for param_name in self.emulator_param_names:
+            self.param_priors[param_name] = config[param_name]
+        return None     
 
     def load_plot_quantities(self):
-        param_labels_latex          = self.get_param_names_latex()
-        fiducial_params             = self.get_fiducial_params() # Fiducial parameter values
-
         # Indices where cosmological parameters are found in emulator_param_names
         self.cosmo_indices          = [self.emulator_param_names.index(param) for param in self.cosmo_param_names]
-        self.cosmo_labels           = [param_labels_latex[param] for param in self.cosmo_param_names] # Latex labels for cosmological parameters
-        cosmo_fiducial_params       = [fiducial_params[i] for i in self.cosmo_indices] # Fiducial parameter values for cosmological parameters
-        self.fiducial_params_cosmo  = {label: cosmo_fiducial_params[i] for i, label in enumerate(self.cosmo_labels)} # Fiducial parameter values for cosmological parameters
-        cosmo_param_ranges          = [tuple(self.param_priors[i]) for i in self.cosmo_indices]
-        self.prior_ranges_cosmo     = {label: cosmo_param_ranges[i] for i, label in enumerate(self.cosmo_labels)}
-
-
+        self.cosmo_labels           = [self.cosmo_latex_labels_dict[param] for param in self.cosmo_param_names] # Latex labels for cosmological parameters
+        self.fiducial_cosmo         = {key: self.fiducial_cosmo_params_dict[key] for key in self.cosmo_param_names}
+        self.cosmo_param_ranges     = {key: self.param_priors[key] for key in self.cosmo_param_names}
 
         # Indices where HOD parameters are found in emulator_param_names
         self.HOD_indices            = [self.emulator_param_names.index(param) for param in self.HOD_param_names]
-        self.HOD_labels             = [param_labels_latex[param] for param in self.HOD_param_names] # Latex labels for HOD parameters
-        HOD_fiducial_params         = [fiducial_params[i] for i in self.HOD_indices] # Fiducial parameter values for HOD parameters
-        self.fiducial_params_HOD    = {label: HOD_fiducial_params[i] for i, label in enumerate(self.HOD_param_names)} # Fiducial parameter values for HOD parameters
-        HOD_param_ranges            = [tuple(self.param_priors[i]) for i in self.HOD_indices]
-        self.prior_ranges_HOD       = {label: HOD_param_ranges[i] for i, label in enumerate(self.HOD_labels)}
+        self.HOD_labels             = [self.HOD_latex_labels_dict[param] for param in self.HOD_param_names] # Latex labels for HOD parameters
+        self.fiducial_HOD           = {key: self.fiducial_HOD_params_dict[key] for key in self.HOD_param_names}
+        self.HOD_param_ranges       = {key: self.param_priors[key] for key in self.HOD_param_names}
 
     def load_fixed_and_varying_params(self, fixed_cosmo_params):
-        FIDUCIAL_HOD_params     = pd.read_csv(f"{D13_PATH}/fiducial_data/HOD_parameters_fiducial.csv")
-        FIDUCIAL_cosmo_params   = pd.read_csv(f"{D13_PATH}/fiducial_data/cosmological_parameters.dat", sep=" ")
-        FIDUCIAL_params         = pd.concat([FIDUCIAL_HOD_params, FIDUCIAL_cosmo_params], axis=1)
-        FIDUCIAL_params         = FIDUCIAL_params.iloc[0].to_dict()
-
-        param_labels_latex          = self.get_param_names_latex()
-
-        fixed_param_names       = [param for param in self.emulator_param_names if param in fixed_cosmo_params or param in self.HOD_param_names]
-        varying_param_names     = [param for param in self.emulator_param_names if param not in fixed_param_names]
-        # self.HOD_params         = [FIDUCIAL_params[param] for param in self.emulator_param_names if param in self.HOD_param_names]
-        # self.cosmo_params       = [FIDUCIAL_params[param] for param in self.emulator_param_names if param in self.cosmo_param_names]
-        self.varying_params     = [FIDUCIAL_params[param] for param in self.emulator_param_names if param not in fixed_param_names]
-        varying_param_names     = [param for param in self.emulator_param_names if param not in fixed_param_names]
-        # Get the indices of the varying parameters in emulator_param_names
-        self.varying_param_indices = [self.emulator_param_names.index(param) for param in varying_param_names]
-        self.fixed_param_indices   = [self.emulator_param_names.index(param) for param in fixed_param_names]
-        self.fixed_param_names = fixed_param_names
-        self.cosmo_labels_fixed    = [param_labels_latex[param] for param in self.cosmo_param_names if param in varying_param_names] # Latex labels for cosmological parameters
-
-
+        varying_emulator_param_names     = [param for param in self.emulator_param_names if param not in fixed_cosmo_params]
+        self.varying_cosmo_param_names   = [param for param in self.cosmo_param_names if param not in fixed_cosmo_params]
+        self.fixed_cosmo_param_names     = [param for param in self.emulator_param_names if param in fixed_cosmo_params or param in self.HOD_param_names]
+        self.varying_cosmo_indices_full  = [self.emulator_param_names.index(param) for param in self.varying_cosmo_param_names]
+        self.varying_cosmo_indices_short = [varying_emulator_param_names.index(param) for param in self.varying_cosmo_param_names]
+        self.fiducial_cosmo_varying      = {key: self.fiducial_cosmo_params_dict[key] for key in self.varying_cosmo_param_names}
+        self.varying_cosmo_labels        = [self.cosmo_latex_labels_dict[param] for param in self.varying_cosmo_param_names]
+       
+    def get_plot_label_fixed_cosmo(self, fixed_cosmo_params):
+        label_str = r"\{"
+        N_fixed_params = len(fixed_cosmo_params)
+        for ii, param in enumerate(fixed_cosmo_params):
+            label_str += self.cosmo_latex_labels_dict[param]
+            if ii < N_fixed_params - 1:
+                label_str += ", "
+        label_str += r"\}"
+        return fr"Varying $\mathcal{{C}}$, fixed $\mathcal{{G}}$+{label_str}"
 
     def print_info(self, filename):
         chainfile = Path(self.chain_path / filename)
@@ -222,6 +206,9 @@ class Plot_MCMC:
             filled  = True,
             markers = self.fiducial_params_cosmo,
             )
+        
+        
+
 
         if show:
             # Add figure title
@@ -313,6 +300,7 @@ class Plot_MCMC:
         if not chainfile2.exists():
             raise FileNotFoundError(f"File2 {chainfile2} not found. Run chain first.")
 
+
         samples1 = self.load_samples(
             chainfile1, 
             burnin          = burnin, 
@@ -328,35 +316,56 @@ class Plot_MCMC:
             thin_factor     = thin_factor
             )
 
-        
         cosmo_samples1 = MCSamples(
             samples = samples1[:, self.cosmo_indices], 
-            names   = self.cosmo_labels, 
-            labels  = self.cosmo_labels, 
+            names   = self.cosmo_param_names, 
+            labels  = self.cosmo_labels,  
             label   = r"Varying $\mathcal{C}+\mathcal{G}$")
         cosmo_samples2 = MCSamples(
             samples = samples2[:, self.cosmo_indices], 
-            names   = self.cosmo_labels, 
-            labels  = self.cosmo_labels, 
+            names   = self.cosmo_param_names, 
+            labels  = self.cosmo_labels,  
             label   = r"Varying $\mathcal{C}$, fixed $\mathcal{G}$")
 
         g = plots.get_subplot_plotter(scaling=False)
-        g.settings.axes_labelsize = 22
-        g.settings.axes_fontsize = 18
-        g.settings.legend_fontsize = 20
-        g.settings.subplot_size_ratio = 1
+        g.settings.axes_labelsize       = 24
+        g.settings.axes_fontsize        = 16
+        g.settings.legend_fontsize      = 24
+        g.settings.subplot_size_ratio   = 1
+        g.settings.axis_tick_max_labels = 3
+
 
         g.triangle_plot(
             [cosmo_samples1, cosmo_samples2], 
             filled          = True,
-            markers         = self.fiducial_params_cosmo,
+            markers         = self.fiducial_cosmo, 
             contour_colors  = ["blue", "red"],
-            contour_args    = [{"alpha": 1}, {"alpha": 0.75}],
+            contour_args    = [{"alpha": 1}, {"alpha": 0.7}],
             legend_loc      = "upper right",
             )
+        
+        # for row in range(len(g.subplots)):
+        #     for col in range(len(g.subplots)):
+        #         ax = g.subplots[row, col] 
+        #         if row == len(g.subplots)-1:  # Bottom row
+        #             ax.xaxis.set_major_locator(matplotlib.ticker.MaxNLocator(nbins=3))
+        #             ax.xaxis.set_minor_locator(matplotlib.ticker.AutoMinorLocator())
+        #             ax.tick_params(axis="x", which='minor', bottom=True)#, top=False)
 
+        #         if col == 0:  # First column
+        #             ax.yaxis.set_major_locator(matplotlib.ticker.MaxNLocator(nbins=3))
+        #             ax.yaxis.set_minor_locator(matplotlib.ticker.AutoMinorLocator())
+        #             ax.tick_params(axis="y", which='minor', left=True)#, top=False)
+
+        # for ax in g.subplots.flatten():
+        #     try:
+        #         ax.label_outer(remove_inner_ticks=True)
+        #     except:
+        #         pass 
+        
         if show:
-            plt.show()
+            g.export("test.pdf", adir="figures")
+            # plt.show()
             return 
         
         if figname is None:
@@ -378,19 +387,19 @@ class Plot_MCMC:
                 if _input.lower() != "y":
                     print("Exiting without saving.")
                     return
-            print(f"Saving {output_file_png} ...")
-            g.export(output_file_png, adir="figures/thesis_figures")
             print(f"Saving {output_file_pdf} ...")
             g.export(output_file_pdf, adir="figures/thesis_figures")
+            print(f"Saving {output_file_png} ...")
+            g.export(output_file_png, adir="figures/thesis_figures")
             _input = input("Push to git? (y/n): ")
             if _input.lower() == "y":
-                os.system("cd figures/thesis_figures")
-                os.system("git pull")
-                os.system("git add *")
-                os.system("git commit -m 'new figs'")
-                os.system("git push")
-
-            
+                try:
+                    subprocess.check_call(["git", "-C", "figures/thesis_figures", "pull"])
+                    subprocess.check_call(["git", "-C", "figures/thesis_figures", "add", f"{figname_stem}*"])
+                    subprocess.check_call(["git", "-C", "figures/thesis_figures", "commit", "-m", f"new figs {figname_stem}"])
+                    subprocess.check_call(["git", "-C", "figures/thesis_figures", "push"])
+                except subprocess.CalledProcessError as e:
+                    print(f"Error: {e}")
 
     def plot_cosmo_double_fixed_params(
             self,
@@ -426,36 +435,33 @@ class Plot_MCMC:
             burnin_factor   = burnin_factor, 
             thin_factor     = thin_factor
             )
+        
         self.load_fixed_and_varying_params(fixed_cosmo_params=fixed_params)
-        param_labels_latex          = self.get_param_names_latex()
-        label_str = r"\{"
-        N_fixed_params = len(fixed_params)
-        for ii, param in enumerate(fixed_params):
-            label_str += param_labels_latex[param]
-            if ii < N_fixed_params - 1:
-                label_str += ", "
-        label_str += r"\}"
+        assert len(self.varying_cosmo_param_names) == samples2.shape[-1], "Number of varying parameters does not match number of columns in samples2"
+        
         cosmo_samples1 = MCSamples(
-            samples = samples1[:, self.varying_param_indices], 
-            names   = self.cosmo_labels_fixed, 
-            labels  = self.cosmo_labels_fixed, 
-            label   = r"Varying $\mathcal{C}$, fixed $\mathcal{G}$")
+            samples = samples1[:, self.varying_cosmo_indices_full], 
+            names   = self.varying_cosmo_param_names, 
+            labels  = self.varying_cosmo_labels, 
+            label   = r"Varying $\mathcal{C}$, fixed $\mathcal{G}$"
+            )
         cosmo_samples2 = MCSamples(
-            samples = samples2, 
-            names   = self.cosmo_labels_fixed, 
-            labels  = self.cosmo_labels_fixed, 
-            label   = fr"Varying $\mathcal{{C}}$, fixed $\mathcal{{G}}$+{label_str}")
+            samples = samples2[:, self.varying_cosmo_indices_short], 
+            names   = self.varying_cosmo_param_names, 
+            labels  = self.varying_cosmo_labels, 
+            label   = self.get_plot_label_fixed_cosmo(fixed_params)
+            )
 
         g = plots.get_subplot_plotter(scaling=False)
-        g.settings.axes_labelsize = 22
-        g.settings.axes_fontsize = 18
-        g.settings.legend_fontsize = 20
-        g.settings.subplot_size_ratio = 1
+        g.settings.axes_labelsize       = 22
+        g.settings.axes_fontsize        = 18
+        g.settings.legend_fontsize      = 20
+        g.settings.subplot_size_ratio   = 1
 
         g.triangle_plot(
             [cosmo_samples1, cosmo_samples2], 
             filled          = True,
-            markers         = self.fiducial_params_cosmo,
+            markers         = self.fiducial_cosmo_varying,
             contour_colors  = ["blue", "red"],
             contour_args    = [{"alpha": 1}, {"alpha": 0.75}],
             legend_loc      = "upper right",
@@ -484,18 +490,20 @@ class Plot_MCMC:
                 if _input.lower() != "y":
                     print("Exiting without saving.")
                     return
-            print(f"Saving {output_file_png} ...")
-            g.export(output_file_png, adir="figures/thesis_figures")
             print(f"Saving {output_file_pdf} ...")
             g.export(output_file_pdf, adir="figures/thesis_figures")
+            print(f"Saving {output_file_png} ...")
+            g.export(output_file_png, adir="figures/thesis_figures")
             _input = input("Push to git? (y/n): ")
             if _input.lower() == "y":
-                os.system("cd figures/thesis_figures")
-                os.system("git pull")
-                os.system("git add *")
-                os.system("git commit -m 'new figs'")
-                os.system("git push")
-
+                try:
+                    subprocess.check_call(["git", "-C", "figures/thesis_figures", "pull"])
+                    subprocess.check_call(["git", "-C", "figures/thesis_figures", "add", f"{figname_stem}*"])
+                    subprocess.check_call(["git", "-C", "figures/thesis_figures", "commit", "-m", f"new figs {figname_stem}"])
+                    subprocess.check_call(["git", "-C", "figures/thesis_figures", "push"])
+                except subprocess.CalledProcessError as e:
+                    print(f"Error: {e}")
+                    
     def plot_HOD_double(
             self,
             filename1:      str,
@@ -549,7 +557,7 @@ class Plot_MCMC:
             samples = samples2[:, HOD_indices2],
             names   = self.HOD_param_names, 
             labels  = self.HOD_labels, 
-            label   = r"Varying $\mathcal{G}$")
+            label   = r"Varying $\mathcal{G}$, fixed $\mathcal{C}$")
         
         g = plots.get_subplot_plotter(scaling=False)
         g.settings.axes_labelsize = 22
@@ -594,32 +602,48 @@ class Plot_MCMC:
             g.export(output_file_pdf, adir="figures/thesis_figures")
             _input = input("Push to git? (y/n): ")
             if _input.lower() == "y":
-                os.system("plotgush")
-                
+                try:
+                    subprocess.check_call(["git", "-C", "figures/thesis_figures", "pull"])
+                    subprocess.check_call(["git", "-C", "figures/thesis_figures", "add", f"{figname_stem}*"])
+                    subprocess.check_call(["git", "-C", "figures/thesis_figures", "commit", "-m", f"new figs {figname_stem}"])
+                    subprocess.check_call(["git", "-C", "figures/thesis_figures", "push"])
+                except subprocess.CalledProcessError as e:
+                    print(f"Error: {e}")
 
 
 
 global show 
-# show = True
-show = False
+show = True
+# show = False
 
 L = Plot_MCMC()
+# L.plot_cosmo(filename="vary_cosmo_DE_4w_1e5.hdf5")
+# exit()
 # L.plot_cosmo_double(filename1="DE_4w_1e5_r1_50.hdf5", filename2="vary_cosmo_DE_4w_1e5_r1_50.hdf5", burnin_factor=2, thin_factor=1)
 L.plot_cosmo_double_fixed_params(
     filename1="vary_cosmo_DE_4w_1e5.hdf5", 
-    filename2="vary_cosmo_wa_alphas_fixed_DE_4w_5e4.hdf5", 
-    fixed_params=["wa", "alpha_s"],
-    figname="MCMC_cosmo_posteriors_wa_alphas_fixed.pdf", 
+    filename2="vary_cosmo_wa_alphas_w0_fixed_DE_4w_1e5.hdf5", 
+    # filename2="vary_cosmo_wa_alphas_fixed_DE_4w_5e4.hdf5", 
+    fixed_params=["w0", "wa", "alpha_s"],
+    # fixed_params=["wa", "alpha_s"],
+    figname="MCMC_cosmo_posteriors_wa_alphas_w0_fixed.pdf", 
     to_thesis=True
     )
 # exit()
 # L.plot_HOD_double(filename1="DE_4w_1e5_r1_50.hdf5", filename2="vary_HOD_DE_4w_1e5_r1_50.hdf5")
-L.plot_cosmo_double(
-    filename1="DE_8w_2e5.hdf5", 
-    filename2="vary_cosmo_DE_8w_2e5.hdf5", 
-    figname="MCMC_cosmo_posteriors.pdf", 
-    to_thesis=True
-    )
+
+# L.plot_cosmo_double(
+#     filename1="DE_8w_2e5.hdf5", 
+#     filename2="vary_cosmo_DE_8w_2e5.hdf5", 
+#     figname="MCMC_cosmo_posteriors.pdf", 
+#     to_thesis=True
+#     )
+# L.plot_cosmo_double(
+#     filename1="DE_4w_1e5.hdf5", 
+#     filename2="vary_cosmo_DE_4w_1e5.hdf5", 
+#     figname="MCMC_cosmo_posteriors.pdf", 
+#     to_thesis=False
+#     )
 # L.plot_HOD_double(filename1="DE_8w_2e5.hdf5", filename2="vary_HOD_DE_8w_2e5.hdf5",
 #                     figname="MCMC_HOD_posteriors.pdf", to_thesis=True)
 
