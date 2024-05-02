@@ -668,7 +668,7 @@ class Plot_MCMC:
         g.triangle_plot(
             [HOD_samples1, HOD_samples2], 
             filled          = True,
-            markers         = self.fiducial_params_HOD,
+            markers         = self.fiducial_HOD,
             contour_colors  = ["blue", "red"],
             contour_args    = [{"alpha": 1}, {"alpha": 0.75}],
             legend_loc      = "upper right",
@@ -710,7 +710,114 @@ class Plot_MCMC:
                 except subprocess.CalledProcessError as e:
                     print(f"Error: {e}")
 
+    def plot_HOD_double_no_kappa(
+            self,
+            filename1:      str,
+            filename2:      str,
+            figname:        str  = None,
+            burnin:         int  = None,
+            thin:           int  = None,
+            burnin_factor:  float = 10,
+            thin_factor:    float = 5,
+            to_thesis:      bool  = False,
+        ):
 
+        chainfile1     = Path(self.chain_path / filename1)
+        chainfile2     = Path(self.chain_path / filename2)
+        if not chainfile1.exists():
+            raise FileNotFoundError(f"File1 {chainfile1} not found. Run chain first.")
+        if not chainfile2.exists():
+            raise FileNotFoundError(f"File2 {chainfile2} not found. Run chain first.")
+
+        samples1 = self.load_samples(
+            chainfile1, 
+            burnin          = burnin, 
+            thin            = thin, 
+            burnin_factor   = burnin_factor, 
+            thin_factor     = thin_factor
+            )
+        samples2 = self.load_samples(
+            chainfile2, 
+            burnin          = burnin, 
+            thin            = thin, 
+            burnin_factor   = burnin_factor, 
+            thin_factor     = thin_factor
+            )
+        if samples1.shape[1] == len(self.HOD_indices):
+            HOD_indices1 = [HOD_idx - len(self.cosmo_indices) for HOD_idx in self.HOD_indices]
+        else:
+            HOD_indices1 = self.HOD_indices
+
+        if samples2.shape[1] == len(self.HOD_indices):
+            HOD_indices2 = [HOD_idx - len(self.cosmo_indices) for HOD_idx in self.HOD_indices]
+        else:
+            HOD_indices2 = self.HOD_indices
+        HOD_indices1 = HOD_indices1[:-1]
+        HOD_indices2 = HOD_indices2[:-1]
+
+        
+        HOD_samples1 = MCSamples(
+            samples = samples1[:, HOD_indices1], 
+            names   = self.HOD_param_names[:-1], 
+            labels  = self.HOD_labels[:-1],
+            label   = r"Varying $\mathcal{C}+\mathcal{G}$")
+        HOD_samples2 = MCSamples(
+            samples = samples2[:, HOD_indices2],
+            names   = self.HOD_param_names[:-1], 
+            labels  = self.HOD_labels[:-1], 
+            label   = r"Varying $\mathcal{G}$, fixed $\mathcal{C}$")
+        
+        g = plots.get_subplot_plotter(scaling=False)
+        g.settings.axes_labelsize = 22
+        g.settings.axes_fontsize = 18
+        g.settings.legend_fontsize = 20
+        g.settings.subplot_size_ratio = 1
+        
+        g.triangle_plot(
+            [HOD_samples1, HOD_samples2], 
+            filled          = True,
+            markers         = self.fiducial_HOD,
+            contour_colors  = ["blue", "red"],
+            contour_args    = [{"alpha": 1}, {"alpha": 0.75}],
+            legend_loc      = "upper right",
+            )
+
+        if show and not to_thesis:
+            plt.show()
+            return 
+        
+        if figname is None:
+            # Set figname to HOD_filename-stem.png
+            figname = f"HOD_compare-{filename1.split('.')[0]}-{filename2.split('.')[0]}.png"
+        
+        if not type(figname) is str:
+            raise ValueError("figname must be a string.")
+        if not to_thesis:
+            g.export(figname, adir="figures")
+
+        else:
+            figname_stem = figname.split('.')[0] if "." in figname else figname
+            output_file_png = f"{figname_stem}.png"
+            output_file_pdf = f"{figname_stem}.pdf"
+            if Path(f"figures/thesis_figures/{output_file_png}").exists() or Path(f"figures/thesis_figures/{output_file_pdf}").exists():
+                _input = input(f"File {output_file_png} already exists. Overwrite? (y/n): ")
+                if _input.lower() != "y":
+                    print("Exiting without saving.")
+                    return
+            print(f"Saving {output_file_png} ...")
+            g.export(output_file_png, adir="figures/thesis_figures")
+            print(f"Saving {output_file_pdf} ...")
+            g.export(output_file_pdf, adir="figures/thesis_figures")
+            _input = input("Push to git? (y/n): ")
+            if _input.lower() == "y":
+                try:
+                    subprocess.check_call(["git", "-C", "figures/thesis_figures", "pull"])
+                    subprocess.check_call(["git", "-C", "figures/thesis_figures", "add", f"{figname_stem}*"])
+                    subprocess.check_call(["git", "-C", "figures/thesis_figures", "commit", "-m", f"new figs {figname_stem}"])
+                    subprocess.check_call(["git", "-C", "figures/thesis_figures", "push"])
+                except subprocess.CalledProcessError as e:
+                    print(f"Error: {e}")
+   
 
 global show 
 show = True
@@ -721,12 +828,21 @@ L = Plot_MCMC()
 
 
 
-L.plot_cosmo_double_no_wb(
-    filename1="DE_8w_2e5.hdf5",
-    filename2="vary_cosmo_DE_8w_2e5.hdf5",
-    figname="MCMC_cosmo_posteriors_no_wb_8w_2e5steps.pdf",
-    # to_thesis=True
-    )
+#============================
+# Finished
+#============================
+# L.plot_cosmo_double_no_wb(
+#     filename1="DE_8w_2e5.hdf5",
+#     filename2="vary_cosmo_DE_8w_2e5.hdf5",
+#     figname="MCMC_cosmo_posteriors_no_wb_8w_2e5steps.pdf",
+#     to_thesis=True
+#     )
+# L.plot_HOD_double_no_kappa(
+#     filename1="DE_8w_2e5.hdf5",
+#     filename2="vary_HOD_DE_8w_2e5.hdf5",
+#     figname="MCMC_HOD_posteriors_no_kappa_8w_2e5steps.pdf",
+#     to_thesis=True
+# )
 
 
 
