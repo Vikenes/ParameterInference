@@ -401,6 +401,106 @@ class Plot_MCMC:
                 except subprocess.CalledProcessError as e:
                     print(f"Error: {e}")
 
+    def plot_cosmo_double_no_wb(
+            self,
+            filename1:      str,
+            filename2:      str,
+            figname:        str  = None,
+            burnin:         int  = None,
+            thin:           int  = None,
+            burnin_factor:  float = 10,
+            thin_factor:    float = 5,
+            to_thesis:      bool  = False,
+        ):
+
+        chainfile1     = Path(self.chain_path / filename1)
+        chainfile2     = Path(self.chain_path / filename2)
+        if not chainfile1.exists():
+            raise FileNotFoundError(f"File1 {chainfile1} not found. Run chain first.")
+        if not chainfile2.exists():
+            raise FileNotFoundError(f"File2 {chainfile2} not found. Run chain first.")
+        
+        samples1 = self.load_samples(
+            chainfile1, 
+            burnin          = burnin, 
+            thin            = thin, 
+            burnin_factor   = burnin_factor, 
+            thin_factor     = thin_factor
+            )
+        samples2 = self.load_samples(
+            chainfile2, 
+            burnin          = burnin, 
+            thin            = thin, 
+            burnin_factor   = burnin_factor, 
+            thin_factor     = thin_factor
+            )
+
+        cosmo_samples1 = MCSamples(
+            samples = samples1[:, self.cosmo_indices[1:]], 
+            names   = self.cosmo_param_names[1:], 
+            labels  = self.cosmo_labels[1:],  
+            label   = r"Varying $\mathcal{C}+\mathcal{G}$")
+        cosmo_samples2 = MCSamples(
+            samples = samples2[:, self.cosmo_indices[1:]], 
+            names   = self.cosmo_param_names[1:], 
+            labels  = self.cosmo_labels[1:],  
+            label   = r"Varying $\mathcal{C}$, fixed $\mathcal{G}$")
+
+        g = plots.get_subplot_plotter(scaling=False)
+        g.settings.axes_labelsize       = 24
+        g.settings.axes_fontsize        = 16
+        g.settings.legend_fontsize      = 24
+        g.settings.subplot_size_ratio   = 1
+        g.settings.axis_tick_max_labels = 3
+
+
+        g.triangle_plot(
+            [cosmo_samples1, cosmo_samples2], 
+            filled          = True,
+            markers         = self.fiducial_cosmo, 
+            contour_colors  = ["blue", "red"],
+            contour_args    = [{"alpha": 1}, {"alpha": 0.7}],
+            legend_loc      = "upper right",
+            )
+        
+        if show and not to_thesis:
+            # g.export("test.pdf", adir="figures")
+            plt.show()
+            return 
+        
+        if figname is None:
+            # Set figname to cosmo_filename-stem.png
+            figname = f"cosmo_compare-{filename1.split('.')[0]}-{filename2.split('.')[0]}.png"
+
+        if not type(figname) is str:
+            raise ValueError("figname must be a string.")
+        if not to_thesis:
+            g.export(figname, adir="figures")
+
+        else:
+            figname_stem = figname.split('.')[0] if "." in figname else figname
+            output_file_png = f"{figname_stem}.png"
+            output_file_pdf = f"{figname_stem}.pdf"
+
+            if Path(f"figures/thesis_figures/{output_file_png}").exists() or Path(f"figures/thesis_figures/{output_file_pdf}").exists():
+                _input = input(f"File {output_file_png} already exists. Overwrite? (y/n): ")
+                if _input.lower() != "y":
+                    print("Exiting without saving.")
+                    return
+            print(f"Saving {output_file_pdf} ...")
+            g.export(output_file_pdf, adir="figures/thesis_figures")
+            print(f"Saving {output_file_png} ...")
+            g.export(output_file_png, adir="figures/thesis_figures")
+            _input = input("Push to git? (y/n): ")
+            if _input.lower() == "y":
+                try:
+                    subprocess.check_call(["git", "-C", "figures/thesis_figures", "pull"])
+                    subprocess.check_call(["git", "-C", "figures/thesis_figures", "add", f"{figname_stem}*"])
+                    subprocess.check_call(["git", "-C", "figures/thesis_figures", "commit", "-m", f"new figs {figname_stem}"])
+                    subprocess.check_call(["git", "-C", "figures/thesis_figures", "push"])
+                except subprocess.CalledProcessError as e:
+                    print(f"Error: {e}")
+
     def plot_cosmo_double_fixed_params(
             self,
             filename1:      str,
@@ -617,33 +717,43 @@ show = True
 # show = False
 
 L = Plot_MCMC()
-# L.plot_cosmo(filename="vary_cosmo_DE_4w_1e5.hdf5")
-# exit()
-# L.plot_cosmo_double(filename1="DE_4w_1e5_r1_50.hdf5", filename2="vary_cosmo_DE_4w_1e5_r1_50.hdf5", burnin_factor=2, thin_factor=1)
-L.plot_cosmo_double_fixed_params(
-    filename1="vary_cosmo_DE_4w_1e5.hdf5", 
-    filename2="vary_cosmo_wa_alphas_w0_fixed_DE_4w_1e5.hdf5", 
-    # filename2="vary_cosmo_wa_alphas_fixed_DE_4w_5e4.hdf5", 
-    fixed_params=["w0", "wa", "alpha_s"],
-    # fixed_params=["wa", "alpha_s"],
-    figname="MCMC_cosmo_posteriors_wa_alphas_w0_fixed.pdf", 
-    to_thesis=True
-    )
-# exit()
-# L.plot_HOD_double(filename1="DE_4w_1e5_r1_50.hdf5", filename2="vary_HOD_DE_4w_1e5_r1_50.hdf5")
 
+
+
+
+L.plot_cosmo_double_no_wb(
+    filename1="DE_8w_2e5.hdf5",
+    filename2="vary_cosmo_DE_8w_2e5.hdf5",
+    figname="MCMC_cosmo_posteriors_no_wb_8w_2e5steps.pdf",
+    # to_thesis=True
+    )
+
+
+
+
+# =================
+# old with full triangle
+# =================
 # L.plot_cosmo_double(
 #     filename1="DE_8w_2e5.hdf5", 
 #     filename2="vary_cosmo_DE_8w_2e5.hdf5", 
-#     figname="MCMC_cosmo_posteriors.pdf", 
+#     figname="MCMC_cosmo_posteriors_full.pdf", 
 #     to_thesis=True
 #     )
-# L.plot_cosmo_double(
-#     filename1="DE_4w_1e5.hdf5", 
-#     filename2="vary_cosmo_DE_4w_1e5.hdf5", 
-#     figname="MCMC_cosmo_posteriors.pdf", 
-#     to_thesis=False
+# L.plot_HOD_double(
+#     filename1="DE_8w_2e5.hdf5", 
+#     filename2="vary_HOD_DE_8w_2e5.hdf5",
+#     figname="MCMC_HOD_posteriors_full.pdf", 
+#     to_thesis=True
 #     )
-# L.plot_HOD_double(filename1="DE_8w_2e5.hdf5", filename2="vary_HOD_DE_8w_2e5.hdf5",
-#                     figname="MCMC_HOD_posteriors.pdf", to_thesis=True)
 
+# =================
+# old with w0,wa,alpha_s
+# =================
+# L.plot_cosmo_double_fixed_params(
+#     filename1="vary_cosmo_DE_4w_1e5.hdf5", 
+#     filename2="vary_cosmo_wa_alphas_w0_fixed_DE_4w_1e5.hdf5", 
+#     fixed_params=["w0", "wa", "alpha_s"],
+#     figname="MCMC_cosmo_posteriors_wa_alphas_w0_fixed.pdf", 
+#     to_thesis=True
+# )
