@@ -541,14 +541,15 @@ class Plot_MCMC:
         assert len(self.varying_cosmo_param_names) == samples2.shape[-1], "Number of varying parameters does not match number of columns in samples2"
         
         if include_wb:
-            varying_cosmo_indices_full = self.varying_cosmo_indices_full
-            varying_cosmo_param_names = self.varying_cosmo_param_names
-            varying_cosmo_labels = self.varying_cosmo_labels
+            varying_cosmo_indices_full  = self.varying_cosmo_indices_full
+            varying_cosmo_param_names   = self.varying_cosmo_param_names
+            varying_cosmo_labels        = self.varying_cosmo_labels
             varying_cosmo_indices_short = self.varying_cosmo_indices_short
+
         else:
-            varying_cosmo_indices_full = self.varying_cosmo_indices_full[1:]
-            varying_cosmo_param_names = self.varying_cosmo_param_names[1:]
-            varying_cosmo_labels = self.varying_cosmo_labels[1:]
+            varying_cosmo_indices_full  = self.varying_cosmo_indices_full[1:]
+            varying_cosmo_param_names   = self.varying_cosmo_param_names[1:]
+            varying_cosmo_labels        = self.varying_cosmo_labels[1:]
             varying_cosmo_indices_short = self.varying_cosmo_indices_short[1:]
 
 
@@ -838,22 +839,6 @@ show = True
 
 L = Plot_MCMC()
 
-# TBD:
-# L.plot_cosmo_double_fixed_params(
-#     filename1="vary_cosmo_DE_8w_2e5.hdf5", 
-#     filename2="vary_cosmo_EoS_fixed_DE_4w_1e5.hdf5", 
-#     fixed_params=["w0", "wa"],
-#     figname="MCMC_cosmo_posteriors_no_wb_EoS_fixed_4w_1e5.pdf", 
-#     to_thesis=True
-# )
-
-# L.plot_cosmo_double_fixed_params(
-#     filename1="vary_cosmo_DE_8w_2e5.hdf5", 
-#     filename2="vary_cosmo_spectral_index_fixed_DE_4w_1e5.hdf5", 
-#     fixed_params=["w0", "wa"],
-#     figname="MCMC_cosmo_posteriors_no_wb_spectral_index_fixed_4w_1e5.pdf", 
-#     to_thesis=True
-# )
 
 
 #============================
@@ -869,6 +854,23 @@ L = Plot_MCMC()
 #     filename1="DE_8w_2e5.hdf5",
 #     filename2="vary_HOD_DE_8w_2e5.hdf5",
 #     figname="MCMC_HOD_posteriors_no_kappa_8w_2e5steps.pdf",
+#     to_thesis=True
+# )
+
+# L.plot_cosmo_double_fixed_params(
+#     filename1="vary_cosmo_DE_8w_2e5.hdf5", 
+#     filename2="vary_cosmo_EoS_fixed_DE_4w_1e5.hdf5", 
+#     fixed_params=["wb", "w0", "wa"],
+#     figname="MCMC_cosmo_posteriors_no_wb_EoS_fixed_4w_1e5.pdf", 
+#     include_wb=True,
+#     to_thesis=True
+# )
+# L.plot_cosmo_double_fixed_params(
+#     filename1="vary_cosmo_DE_8w_2e5.hdf5", 
+#     filename2="vary_cosmo_spectral_index_fixed_DE_4w_1e5.hdf5", 
+#     fixed_params=["wb", "ns", "alpha_s"],
+#     figname="MCMC_cosmo_posteriors_no_wb_spectral_index_fixed_4w_1e5.pdf", 
+#     include_wb=True,
 #     to_thesis=True
 # )
 
