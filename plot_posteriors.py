@@ -506,6 +506,7 @@ class Plot_MCMC:
             filename1:      str,
             filename2:      str,
             fixed_params:   list,
+            include_wb:     bool,
             figname:        str  = None,
             burnin:         int  = None,
             thin:           int  = None,
@@ -539,16 +540,28 @@ class Plot_MCMC:
         self.load_fixed_and_varying_params(fixed_cosmo_params=fixed_params)
         assert len(self.varying_cosmo_param_names) == samples2.shape[-1], "Number of varying parameters does not match number of columns in samples2"
         
+        if include_wb:
+            varying_cosmo_indices_full = self.varying_cosmo_indices_full
+            varying_cosmo_param_names = self.varying_cosmo_param_names
+            varying_cosmo_labels = self.varying_cosmo_labels
+            varying_cosmo_indices_short = self.varying_cosmo_indices_short
+        else:
+            varying_cosmo_indices_full = self.varying_cosmo_indices_full[1:]
+            varying_cosmo_param_names = self.varying_cosmo_param_names[1:]
+            varying_cosmo_labels = self.varying_cosmo_labels[1:]
+            varying_cosmo_indices_short = self.varying_cosmo_indices_short[1:]
+
+
         cosmo_samples1 = MCSamples(
-            samples = samples1[:, self.varying_cosmo_indices_full], 
-            names   = self.varying_cosmo_param_names, 
-            labels  = self.varying_cosmo_labels, 
+            samples = samples1[:, varying_cosmo_indices_full], 
+            names   = varying_cosmo_param_names, 
+            labels  = varying_cosmo_labels, 
             label   = r"Varying $\mathcal{C}$, fixed $\mathcal{G}$"
             )
         cosmo_samples2 = MCSamples(
-            samples = samples2[:, self.varying_cosmo_indices_short], 
-            names   = self.varying_cosmo_param_names, 
-            labels  = self.varying_cosmo_labels, 
+            samples = samples2[:, varying_cosmo_indices_short], 
+            names   = varying_cosmo_param_names, 
+            labels  = varying_cosmo_labels, 
             label   = self.get_plot_label_fixed_cosmo(fixed_params)
             )
 
@@ -567,7 +580,7 @@ class Plot_MCMC:
             legend_loc      = "upper right",
             )
 
-        if show:
+        if show and not to_thesis:
             plt.show()
             return 
         
@@ -825,7 +838,22 @@ show = True
 
 L = Plot_MCMC()
 
+# TBD:
+# L.plot_cosmo_double_fixed_params(
+#     filename1="vary_cosmo_DE_8w_2e5.hdf5", 
+#     filename2="vary_cosmo_EoS_fixed_DE_4w_1e5.hdf5", 
+#     fixed_params=["w0", "wa"],
+#     figname="MCMC_cosmo_posteriors_no_wb_EoS_fixed_4w_1e5.pdf", 
+#     to_thesis=True
+# )
 
+# L.plot_cosmo_double_fixed_params(
+#     filename1="vary_cosmo_DE_8w_2e5.hdf5", 
+#     filename2="vary_cosmo_spectral_index_fixed_DE_4w_1e5.hdf5", 
+#     fixed_params=["w0", "wa"],
+#     figname="MCMC_cosmo_posteriors_no_wb_spectral_index_fixed_4w_1e5.pdf", 
+#     to_thesis=True
+# )
 
 
 #============================
