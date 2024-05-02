@@ -221,17 +221,17 @@ class Likelihood:
         return None 
  
 L4_EoS_fixed = Likelihood(
-    fixed_cosmo_params=["w0", "wa"],
+    fixed_cosmo_params=["wb", "w0", "wa"],
     walkers_per_param=4, 
     r_min=0.0, 
     r_max=105.0
     )
 
 L4_spectral_index_fixed = Likelihood(
-    fixed_cosmo_params=["ns", "alpha_s"],
+    fixed_cosmo_params=["wb", "ns", "alpha_s"],
     walkers_per_param=4, 
     r_min=0.0, 
     r_max=105.0
     )
 # L4_EoS_fixed.run_chain("vary_cosmo_EoS_fixed_DE_4w_1e5.hdf5", stddev_factor=1e-3, max_n=int(1e5), moves=emcee.moves.DEMove())
-# L4_spectral_index_fixed.run_chain("vary_cosmo_spectral_index_fixed_DE_4w_1e5.hdf5", stddev_factor=1e-3, max_n=int(1e5), moves=emcee.moves.DEMove())
+L4_spectral_index_fixed.run_chain("vary_cosmo_spectral_index_fixed_DE_4w_1e5.hdf5", stddev_factor=1e-3, max_n=int(1e5), moves=emcee.moves.DEMove())
