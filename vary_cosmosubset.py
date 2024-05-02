@@ -36,6 +36,7 @@ class xi_emulator_class:
 class Likelihood:
     def __init__(
         self,
+        fixed_cosmo_params,
         data_path           = "data/inference_data",
         emulator_path       = "data/emulator_data/sliced_r/emulators/batch_size_3040",
         emulator_version    = 2,
@@ -67,7 +68,7 @@ class Likelihood:
         self.emulator_param_names   = self.emulator.config["data"]["feature_columns"][:-1]
         self.HOD_param_names        = ["log10M1", "sigma_logM", "kappa", "alpha", "log10_ng"]
         self.cosmo_param_names      = ["N_eff", "alpha_s", "ns", "sigma8", "w0", "wa", "wb", "wc"]
-        self.load_fixed_and_varying_params(fixed_cosmo_params=["wa", "alpha_s", "w0"])
+        self.load_fixed_and_varying_params(fixed_cosmo_params=fixed_cosmo_params)
         self.param_priors           = self.get_parameter_priors()
         self.nparams                = self.param_priors.shape[0]
         self.nwalkers               = int(self.nparams * walkers_per_param)
@@ -219,5 +220,18 @@ class Likelihood:
         print(f"Completed chain run for {outfile.name}.")
         return None 
  
-L4 = Likelihood(walkers_per_param=4, r_min=0.0, r_max=105.0)
-L4.run_chain("vary_cosmo_wa_alphas_w0_fixed_DE_4w_1e5.hdf5", stddev_factor=1e-3, max_n=int(1e5), moves=emcee.moves.DEMove())
+L4_EoS_fixed = Likelihood(
+    fixed_cosmo_params=["w0", "wa"],
+    walkers_per_param=4, 
+    r_min=0.0, 
+    r_max=105.0
+    )
+
+L4_spectral_index_fixed = Likelihood(
+    fixed_cosmo_params=["ns", "alpha_s"],
+    walkers_per_param=4, 
+    r_min=0.0, 
+    r_max=105.0
+    )
+# L4_EoS_fixed.run_chain("vary_cosmo_EoS_fixed_DE_4w_1e5.hdf5", stddev_factor=1e-3, max_n=int(1e5), moves=emcee.moves.DEMove())
+# L4_spectral_index_fixed.run_chain("vary_cosmo_spectral_index_fixed_DE_4w_1e5.hdf5", stddev_factor=1e-3, max_n=int(1e5), moves=emcee.moves.DEMove())
