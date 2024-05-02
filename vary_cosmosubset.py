@@ -234,4 +234,4 @@ L4_spectral_index_fixed = Likelihood(
     r_max=105.0
     )
 # L4_EoS_fixed.run_chain("vary_cosmo_EoS_fixed_DE_4w_1e5.hdf5", stddev_factor=1e-3, max_n=int(1e5), moves=emcee.moves.DEMove())
-L4_spectral_index_fixed.run_chain("vary_cosmo_spectral_index_fixed_DE_4w_1e5.hdf5", stddev_factor=1e-3, max_n=int(1e5), moves=emcee.moves.DEMove())
+# L4_spectral_index_fixed.run_chain("vary_cosmo_spectral_index_fixed_DE_4w_1e5.hdf5", stddev_factor=1e-3, max_n=int(1e5), moves=emcee.moves.DEMove())
