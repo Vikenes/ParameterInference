@@ -568,9 +568,11 @@ class Plot_MCMC:
 
         g = plots.get_subplot_plotter(scaling=False)
         g.settings.axes_labelsize       = 22
-        g.settings.axes_fontsize        = 18
+        g.settings.axes_fontsize        = 15
         g.settings.legend_fontsize      = 20
+        g.settings.axis_tick_max_labels = 3
         g.settings.subplot_size_ratio   = 1
+        plt.rcParams.update({'axes.labelpad': 10})
 
         g.triangle_plot(
             [cosmo_samples1, cosmo_samples2], 
