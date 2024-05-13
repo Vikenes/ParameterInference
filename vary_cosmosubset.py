@@ -186,12 +186,12 @@ class Likelihood:
         
 
         outfile = Path(self.outpath / filename)
-        if outfile.exists():
-            msg = f"File {outfile} already exists. Choose another filename.\n"
-            msg += f"  Run 'continue_chain('{outfile.name}')' to continue from last iteration."
-            raise FileExistsError(msg)
-        else:
-            print(f"Running chain, storing in {outfile}...")
+        # if outfile.exists():
+        #     msg = f"File {outfile} already exists. Choose another filename.\n"
+        #     msg += f"  Run 'continue_chain('{outfile.name}')' to continue from last iteration."
+        #     raise FileExistsError(msg)
+        # else:
+        #     print(f"Running chain, storing in {outfile}...")
 
         # Initial chain 
         np.random.seed(4200)
@@ -220,18 +220,34 @@ class Likelihood:
         print(f"Completed chain run for {outfile.name}.")
         return None 
  
-L4_EoS_fixed = Likelihood(
-    fixed_cosmo_params=["wb", "w0", "wa"],
-    walkers_per_param=4, 
-    r_min=0.0, 
-    r_max=105.0
-    )
-
-L4_spectral_index_fixed = Likelihood(
-    fixed_cosmo_params=["wb", "ns", "alpha_s"],
-    walkers_per_param=4, 
-    r_min=0.0, 
-    r_max=105.0
-    )
+# L4_EoS_fixed = Likelihood(
+#     fixed_cosmo_params=["wb", "w0", "wa"],
+#     walkers_per_param=4, 
+#     r_min=0.0, 
+#     r_max=105.0
+#     )
 # L4_EoS_fixed.run_chain("vary_cosmo_EoS_fixed_DE_4w_1e5.hdf5", stddev_factor=1e-3, max_n=int(1e5), moves=emcee.moves.DEMove())
+
+# L4_spectral_index_fixed = Likelihood(
+#     fixed_cosmo_params=["wb", "ns", "alpha_s"],
+#     walkers_per_param=4, 
+#     r_min=0.0, 
+#     r_max=105.0
+#     )
 # L4_spectral_index_fixed.run_chain("vary_cosmo_spectral_index_fixed_DE_4w_1e5.hdf5", stddev_factor=1e-3, max_n=int(1e5), moves=emcee.moves.DEMove())
+
+# L4_vary_ns_only = Likelihood(
+#     fixed_cosmo_params=['wb', 'wc', 'sigma8', 'alpha_s', 'N_eff', 'w0', 'wa'],
+#     walkers_per_param=8,
+#     r_min=0.0,
+#     r_max=105.0,
+# ) 
+# L4_vary_ns_only.run_chain("vary_ns_DE_8w_1e5.hdf5", stddev_factor=1e-3, max_n=int(1e5), moves=emcee.moves.DEMove())
+
+# L4_vary_alpha_s_only = Likelihood(
+#     fixed_cosmo_params=['wb', 'wc', 'sigma8', 'ns', 'N_eff', 'w0', 'wa'],
+#     walkers_per_param=8,
+#     r_min=0.0,
+#     r_max=105.0,
+# ) 
+# L4_vary_alpha_s_only.run_chain("vary_alpha_s_DE_8w_1e5.hdf5", stddev_factor=1e-3, max_n=int(1e5), moves=emcee.moves.DEMove())
