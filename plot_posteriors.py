@@ -452,6 +452,8 @@ class Plot_MCMC:
         g.settings.legend_fontsize      = 24
         g.settings.subplot_size_ratio   = 1
         g.settings.axis_tick_max_labels = 3
+        g.settings.axis_marker_lw       = 0.8
+        g.settings.axis_marker_color    = "black"
 
 
         g.triangle_plot(
@@ -572,6 +574,8 @@ class Plot_MCMC:
         g.settings.legend_fontsize      = 20
         g.settings.axis_tick_max_labels = 3
         g.settings.subplot_size_ratio   = 1
+        g.settings.axis_marker_color    = "black"
+        g.settings.axis_marker_lw       = 0.8
         plt.rcParams.update({'axes.labelpad': 10})
 
         g.triangle_plot(
@@ -619,7 +623,68 @@ class Plot_MCMC:
                     subprocess.check_call(["git", "-C", "figures/thesis_figures", "push"])
                 except subprocess.CalledProcessError as e:
                     print(f"Error: {e}")
-                    
+    
+    def plot_single_varying_param_double(
+            self, 
+            filename1:      str,
+            filename2:      str,
+            vary_param1:    str,
+            vary_param2:    str,
+            burnin_factor:  int  = 5,
+            thin_factor:    int  = 1,
+            to_theis:       bool = False,
+    ):
+        chainfile1     = Path(self.chain_path / filename1)
+        chainfile2     = Path(self.chain_path / filename2)
+
+        fff1 = h5py.File(chainfile1, "r")
+        fff2 = h5py.File(chainfile2, "r")
+        samples1 = fff1["chain"][:]
+        samples2 = fff2["chain"][:]
+        samples1 = samples1.reshape(samples1.shape[0] * samples1.shape[1])[1000 :: 5]
+        samples2 = samples2.reshape(samples2.shape[0] * samples2.shape[1])[1000 :: 5]
+        
+        cosmo_samples = MCSamples(
+            samples = [samples1, samples2], 
+            names   = [vary_param1, vary_param2], 
+            labels  = [self.cosmo_latex_labels_dict[vary_param1], self.cosmo_latex_labels_dict[vary_param2]], 
+            )
+       
+        g = plots.get_subplot_plotter(5)
+        g.settings.axis_marker_lw = 1
+        g.settings.axis_marker_ls = "solid"
+        g.plots_1d(
+            cosmo_samples, 
+            [vary_param1, vary_param2], 
+            markers=[self.fiducial_cosmo_params_dict[vary_param1], self.fiducial_cosmo_params_dict[vary_param2]],
+            nx=2
+            )
+        
+        # Set xlims
+        for i, ax in enumerate(g.subplots.flatten()):
+            if i == 0:
+                lim = self.param_priors[vary_param1]
+            else:
+                lim = self.param_priors[vary_param2]
+            ax.set_xlim(lim)
+            # ax.set_ylim(self.param_priors[vary_param2])
+
+        figname_stem = "vary_ns_and_alpha_s_only"
+        output_file_png = f"{figname_stem}.png"
+        output_file_pdf = f"{figname_stem}.pdf"
+
+        if Path(f"figures/thesis_figures/{output_file_png}").exists() or Path(f"figures/thesis_figures/{output_file_pdf}").exists():
+            _input = input(f"File {output_file_png} already exists. Overwrite? (y/n): ")
+            if _input.lower() != "y":
+                print("Exiting without saving.")
+                return
+        print(f"Saving {output_file_pdf} ...")
+        g.export(output_file_pdf, adir="figures/thesis_figures")
+        print(f"Saving {output_file_png} ...")
+        g.export(output_file_png, adir="figures/thesis_figures")
+
+
+
     def plot_HOD_double(
             self,
             filename1:      str,
@@ -788,6 +853,9 @@ class Plot_MCMC:
         g.settings.axes_fontsize = 18
         g.settings.legend_fontsize = 20
         g.settings.subplot_size_ratio = 1
+        g.settings.axis_marker_lw       = 0.8
+        g.settings.axis_marker_color    = "black"
+
         
         g.triangle_plot(
             [HOD_samples1, HOD_samples2], 
@@ -841,7 +909,17 @@ show = True
 
 L = Plot_MCMC()
 
+# L.plot_single_varying_param(
+#     filename="vary_ns_DE_4w_1e4.hdf5",
+#     vary_param="ns",
+# )
 
+# L.plot_single_varying_param_double(
+#     filename1="vary_ns_DE_4w_1e5.hdf5",
+#     filename2="vary_alpha_s_DE_4w_1e5.hdf5",
+#     vary_param1="ns",
+#     vary_param2="alpha_s",
+# )
 
 #============================
 # Finished
