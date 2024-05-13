@@ -333,6 +333,8 @@ class Plot_MCMC:
         g.settings.legend_fontsize      = 24
         g.settings.subplot_size_ratio   = 1
         g.settings.axis_tick_max_labels = 3
+        g.settings.axis_marker_lw       = 0.8
+        g.settings.axis_marker_color    = "black"
 
 
         g.triangle_plot(
@@ -363,9 +365,8 @@ class Plot_MCMC:
         #     except:
         #         pass 
         
-        if show:
-            g.export("test.pdf", adir="figures")
-            # plt.show()
+        if show and not to_thesis:
+            plt.show()
             return 
         
         if figname is None:
@@ -745,6 +746,8 @@ class Plot_MCMC:
         g.settings.axes_fontsize = 18
         g.settings.legend_fontsize = 20
         g.settings.subplot_size_ratio = 1
+        g.settings.axis_marker_lw       = 0.8
+        g.settings.axis_marker_color    = "black"
         
         g.triangle_plot(
             [HOD_samples1, HOD_samples2], 
@@ -755,7 +758,7 @@ class Plot_MCMC:
             legend_loc      = "upper right",
             )
 
-        if show:
+        if show and not to_thesis:
             plt.show()
             return 
         
@@ -953,13 +956,7 @@ L = Plot_MCMC()
 #     include_wb=True,
 #     to_thesis=True
 # )
-
-
-
-
-# =================
-# old with full triangle
-# =================
+#### FULL TRIANGLES
 # L.plot_cosmo_double(
 #     filename1="DE_8w_2e5.hdf5", 
 #     filename2="vary_cosmo_DE_8w_2e5.hdf5", 
