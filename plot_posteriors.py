@@ -633,7 +633,7 @@ class Plot_MCMC:
             vary_param2:    str,
             burnin_factor:  int  = 5,
             thin_factor:    int  = 1,
-            to_theis:       bool = False,
+            to_thesis:       bool = False,
     ):
         chainfile1     = Path(self.chain_path / filename1)
         chainfile2     = Path(self.chain_path / filename2)
@@ -652,14 +652,22 @@ class Plot_MCMC:
             )
        
         g = plots.get_subplot_plotter(5)
-        g.settings.axis_marker_lw = 1
-        g.settings.axis_marker_ls = "solid"
+        # g.settings.axis_marker_lw = 1
+        # g.settings.axis_marker_ls = "solid"
+        g.settings.axes_labelsize       = 24
+        g.settings.axes_fontsize        = 16
+        g.settings.legend_fontsize      = 24
+        g.settings.subplot_size_ratio   = 1
+        g.settings.axis_tick_max_labels = 3
+        g.settings.axis_marker_lw       = 0.8
+        g.settings.axis_marker_color    = "black"
         g.plots_1d(
             cosmo_samples, 
             [vary_param1, vary_param2], 
             markers=[self.fiducial_cosmo_params_dict[vary_param1], self.fiducial_cosmo_params_dict[vary_param2]],
             nx=2
             )
+        
         
         # Set xlims
         for i, ax in enumerate(g.subplots.flatten()):
@@ -668,7 +676,11 @@ class Plot_MCMC:
             else:
                 lim = self.param_priors[vary_param2]
             ax.set_xlim(lim)
-            # ax.set_ylim(self.param_priors[vary_param2])
+            ax.xaxis.set_major_locator(matplotlib.ticker.MaxNLocator(5, min_n_ticks=5))#, min_n_tcks=5, prune='both'))
+
+        if show and not to_thesis:
+            plt.show()
+            return
 
         figname_stem = "vary_ns_and_alpha_s_only"
         output_file_png = f"{figname_stem}.png"
@@ -917,12 +929,20 @@ L = Plot_MCMC()
 #     vary_param="ns",
 # )
 
-# L.plot_single_varying_param_double(
-#     filename1="vary_ns_DE_4w_1e5.hdf5",
-#     filename2="vary_alpha_s_DE_4w_1e5.hdf5",
-#     vary_param1="ns",
-#     vary_param2="alpha_s",
-# )
+L.plot_single_varying_param_double(
+    filename1="vary_ns_DE_4w_1e4.hdf5",
+    filename2="vary_alpha_s_DE_4w_1e4.hdf5",
+    vary_param1="ns",
+    vary_param2="alpha_s",
+    to_thesis=True
+)
+# L.plot_cosmo_double(
+#     filename1="DE_4w_1e5_r0.1_70.hdf5", 
+#     filename2="vary_cosmo_DE_4w_1e5_r0.1_70.hdf5", 
+#     figname="MCMC_cosmo_posteriors_full_r_lim.pdf", 
+#     to_thesis=False
+#     )
+
 
 #============================
 # Finished

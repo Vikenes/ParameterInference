@@ -238,16 +238,16 @@ class Likelihood:
 
 # L4_vary_ns_only = Likelihood(
 #     fixed_cosmo_params=['wb', 'wc', 'sigma8', 'alpha_s', 'N_eff', 'w0', 'wa'],
-#     walkers_per_param=8,
+#     walkers_per_param=12,
 #     r_min=0.0,
 #     r_max=105.0,
 # ) 
-# L4_vary_ns_only.run_chain("vary_ns_DE_8w_1e5.hdf5", stddev_factor=1e-3, max_n=int(1e5), moves=emcee.moves.DEMove())
+# L4_vary_ns_only.run_chain("vary_ns_DE_12w_1e4.hdf5", stddev_factor=1e-3, max_n=int(1e4), moves=emcee.moves.DEMove())
 
-# L4_vary_alpha_s_only = Likelihood(
-#     fixed_cosmo_params=['wb', 'wc', 'sigma8', 'ns', 'N_eff', 'w0', 'wa'],
-#     walkers_per_param=8,
-#     r_min=0.0,
-#     r_max=105.0,
-# ) 
-# L4_vary_alpha_s_only.run_chain("vary_alpha_s_DE_8w_1e5.hdf5", stddev_factor=1e-3, max_n=int(1e5), moves=emcee.moves.DEMove())
+L4_vary_alpha_s_only = Likelihood(
+    fixed_cosmo_params=['wb', 'wc', 'sigma8', 'ns', 'N_eff', 'w0', 'wa'],
+    walkers_per_param=12,
+    r_min=0.0,
+    r_max=105.0,
+) 
+L4_vary_alpha_s_only.run_chain("vary_alpha_s_DE_12w_1e4.hdf5", stddev_factor=1e-3, max_n=int(1e4), moves=emcee.moves.DEMove())
