@@ -14,6 +14,14 @@ from _predict import Predictor
 
 D13_PATH = "/mn/stornext/d13/euclid_nobackup/halo/AbacusSummit/emulation_files/"
 
+"""
+Script for running MCMC chains using emcee
+
+The xi_emulator_class is used to load the trained emulator 
+It is called by the Likelihood class, yielding xi(r,C,G), from which wp(rp) is computed.
+
+"""
+
 
 class xi_emulator_class:
     def __init__(
