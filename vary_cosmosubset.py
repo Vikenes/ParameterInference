@@ -8,7 +8,7 @@ import yaml
 import emcee 
 import sys 
 
-sys.path.append("/uio/hume/student-u74/vetleav/Documents/thesis/emulation/emul_utils")
+sys.path.append("/Path/to/EmulationUtilities")
 from _predict import Predictor 
 
 D13_PATH = "/mn/stornext/d13/euclid_nobackup/halo/AbacusSummit/emulation_files/"
